@@ -52,7 +52,7 @@ if (!bool.TryParse((builder.Configuration["DbContext:ShowSql"]), out var showSql
 
 builder.Services.AddDbContext<ApplicationDbContext>(option =>
 {
-    option.UseSqlServer(builder.Configuration.GetConnectionString("sqlConnection"));
+    option.UseSqlServer(builder.Configuration.GetConnectionString("sqlConnectionKY"));
     if (showSql)
     {
         option.EnableSensitiveDataLogging(showSql);

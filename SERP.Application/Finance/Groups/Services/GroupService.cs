@@ -467,6 +467,7 @@ namespace SERP.Application.Finance.Groups.Services
             string localFilePath = "";
             try
             {
+
                 if (!FileHelper.IsExcelFile(request.File.ContentType))
                     throw new BadRequestException(ErrorCodes.NotExcelFile, ErrorMessages.NotExcelFile);
 
@@ -668,6 +669,7 @@ namespace SERP.Application.Finance.Groups.Services
         {
             try
             {
+                _unitOfWork.BeginTransaction();
 
                 int row = 1;
                 var parentGroup = excelData.Select(x => x.parentGroup)

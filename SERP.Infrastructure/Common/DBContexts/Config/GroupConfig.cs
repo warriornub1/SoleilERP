@@ -24,7 +24,7 @@ namespace SERP.Infrastructure.Common.DBContexts.Config
             };
 
 
-            builder.HasIndex(x => x.group_code).IsUnique();
+            builder.HasIndex(x => new { x.group_code, x.group_type } ).IsUnique();
 
             builder.HasCheckConstraint("CK_Group_GroupType",
                 $"group_type IN ({string.Join(", ", validGroupTypes.Select(t => $"'{t}'"))})");

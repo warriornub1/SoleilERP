@@ -6,6 +6,7 @@
         public string cost_center_code { get; set; }
         public string cost_center_description { get; set; }
         public int parent_group_id { get; set; }
+        public string status_flag { get; set; }
         public int? company_structure_id { get; set; }
         public DateTime created_on { get; set; }
         public string created_by { get; set; }
