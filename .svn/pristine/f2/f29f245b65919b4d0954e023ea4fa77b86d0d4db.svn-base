@@ -1,0 +1,42 @@
+﻿using SERP.Application.Masters.Countries.DTOs.Response;
+using SERP.Application.Transactions.PurchaseOrders.DTOs.Response;
+
+namespace SERP.Application.Transactions.AdvancedShipmentNotices.DTOs.Response
+{
+    public class ResponsePackingInformationResponseDto
+    {
+        public int packing_header_id { get; set; }
+        public string? packing_list_no { get; set; }
+        public string container_no { get; set; }
+        public string shipment_type { get; set; }
+        public string container_type { get; set; }
+        public string seal_no { get; set; }
+        public decimal? weight { get; set; }
+        public int? no_of_packages { get; set; }
+        
+       public List<PagedPackingInformationResponseDto> details { get; set; }
+    }
+
+    public class PagedPackingInformationResponseDto
+    {
+        public int id { get; set; }
+        public string? package_no { get; set; }
+        public string? mixed_carton_no { get; set; }
+        public int? asn_detail_id  { get; set; }
+        public int line_no { get; set; }
+        public string? item_no { get; set; }
+        public string? description_1 { get; set; }
+        public string? supplier_part_no { get; set; }
+        public int qty { get; set; }
+        public string? uom { get; set; }
+        public CountryBasicResponseDto? country_of_origin { get; set; }
+        public int? no_of_carton { get; set; }
+        public int? unit_per_carton { get; set; }
+        public DateTime? created_on { get; set; }
+        public string? created_by { get; set; }
+        public DateTime? last_modified_on { get; set; }
+        public string? last_modified_by { get; set; }
+        public string asn_notes_to_warehouse { get; set; }
+        public PoDetailPackingInformationResponseDto po_detail { get; set; }
+    }
+}

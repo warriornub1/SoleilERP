@@ -1,0 +1,57 @@
+﻿using FluentValidation;
+using SERP.Application.Common.Constants;
+using SERP.Application.Finance.CompanyStructures.Interface;
+using SERP.Application.Finance.Groups.Interfaces;
+using SERP.Application.Finance.RevenueCenters.DTOs.Request;
+using SERP.Application.Finance.RevenueCenters.Interface;
+using SERP.Domain.Common.Constants;
+
+namespace SERP.Application.Finance.RevenueCenters.DTOs.Validator
+{
+    public class IRevenueCenterDtoValidator : AbstractValidator<RevenueCenterBaseDto>
+    {
+        private readonly ICompanyStructureRepository _companyStructureRepository;
+        private readonly IRevenueCenterRepository _revenueCenterRepository;
+        private readonly IGroupRepository _groupRepository;
+        public IRevenueCenterDtoValidator(ICompanyStructureRepository companyStructureRepository, IRevenueCenterRepository revenueCenterRepository, IGroupRepository groupRepository)
+        {
+            _companyStructureRepository = companyStructureRepository;
+            _revenueCenterRepository = revenueCenterRepository;
+            _groupRepository = groupRepository;
+
+            RuleFor(x => x).Must(x =>
+                x.status_flag == DomainConstant.StatusFlag.Enabled ||
+                x.status_flag == DomainConstant.StatusFlag.Disabled)
+                .WithMessage(ErrorMessages.StatusFlagNotSupport);
+
+            RuleFor(x => x.company_structure_id)
+                    .MustAsync(async (company_structure_id, token) =>
+                    {
+                        var companyStruct = await _companyStructureRepository.GetByIdAsync(x => x.id == company_structure_id);
+                        return companyStruct != null;
+                    })
+                    .When(x => x.company_structure_id.HasValue)
+                    .WithMessage("{PropertyName}: {PropertyValue} not found.");
+
+            // Reject if code is exists in CostCenter table
+            RuleFor(x => x.revenue_center_code)
+                .MustAsync(async (revenueCenterCode, token) =>
+                {
+                    var costCenter = await _revenueCenterRepository.GetByIdAsync(x => x.revenue_center_code == revenueCenterCode);
+                    return costCenter == null;
+                })
+                .WithMessage(string.Format(ErrorMessages.CostCenterCodeAlreadyExist, "{PropertyValue}"));
+
+
+            // Reject if parent_group_id is not exist in Group table with group_type = CC, status_flag = E
+            RuleFor(x => x.parent_group_id)
+                .MustAsync(async (parentGroupId, token) =>
+                {
+                    var group = await _groupRepository.GetByIdAsync(x => x.id == parentGroupId && x.group_type == DomainConstant.Group.GroupType.RevenueCenter && x.status_flag == DomainConstant.StatusFlag.Enabled);
+                    return group != null;
+                })
+                .WithMessage(string.Format(ErrorMessages.ParentGroupIDDontExist, "{PropertyValue}"));
+
+        }
+    }
+}

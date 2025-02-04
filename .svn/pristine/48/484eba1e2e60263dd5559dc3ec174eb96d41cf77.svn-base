@@ -1,0 +1,106 @@
+﻿
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
+using Serilog;
+using SERP.Application.Masters.Currencies.Services;
+
+namespace ECS.Application.Common.BackendSchedulerTask.Services
+{
+    public class CronJobService : ICronJobService, IHostedService, IDisposable
+    {
+        private readonly CronJobSettings _settings;
+        private Timer _timer;
+        private readonly IServiceScopeFactory _scopeFactory;
+        private CancellationTokenSource _cancellationTokenSource;
+        private readonly ICurrencyService _currencyService;
+
+        public CronJobService(IOptions<CronJobSettings> settings, IServiceScopeFactory scopeFactory, ICurrencyService currencyService)
+        {
+            _settings = settings.Value;
+            _scopeFactory = scopeFactory;
+            _currencyService = currencyService;
+        }
+
+        public void Dispose()
+        {
+            _timer?.Dispose();
+        }
+
+      
+        public Task StartAsync(CancellationToken cancellationToken)
+        {  //Log.Information("CronJobService is starting.");
+            //_logger.LogInformation("CronJobService is starting.");
+            //_timer = new Timer(DoWork, null, TimeSpan.Zero, TimeSpan.FromMinutes(1));
+            Serilog.Log.Information("CronJobService is starting.");
+            ScheduleNextRun();
+            return Task.CompletedTask;
+        }
+
+        public Task StopAsync(CancellationToken cancellationToken)
+        {
+            //Log.Information("CronJobService is stopping.");
+            //_logger.LogInformation("CronJobService is stopping.");
+            _timer?.Change(Timeout.Infinite, 0);
+            _cancellationTokenSource?.Cancel();
+            return Task.CompletedTask;
+        }
+        public void ScheduleNextRun()
+        {
+            var now = DateTime.Now;
+            var nextRunTime = DateTime.Today.Add(_settings.DailyRunTime);
+            if (now > nextRunTime)
+                nextRunTime = nextRunTime.AddDays(1);
+            var initialDelay = nextRunTime - now;
+            _timer = new Timer(DoWork, null, initialDelay, TimeSpan.FromMilliseconds(-1));
+            //var initialDelay = TimeSpan.FromMinutes(0.5); // Set delay to 0.5 minutes
+            //_timer = new Timer(DoWork, null, initialDelay, TimeSpan.FromMilliseconds(-1));
+
+        }
+        private async void DoWork(object state)
+        {
+            _cancellationTokenSource = new CancellationTokenSource();
+            var cancellationToken = _cancellationTokenSource.Token;
+            using (var scope = _scopeFactory.CreateScope())
+            {
+
+                try
+                {
+
+                    await Task.Run(() => _currencyService.UpdateAllBasedCurrencyExchangeFixerIO());
+
+                }
+                catch (Exception ex)
+                {
+                    Serilog.Log.Error(DateTime.Now + " [ERR] DoWork " + ex.Message);
+                }
+                ScheduleNextRun();
+            }
+
+        }
+
+        public async Task DoWork()
+        {
+            _cancellationTokenSource = new CancellationTokenSource();
+            var cancellationToken = _cancellationTokenSource.Token;
+            using (var scope = _scopeFactory.CreateScope())
+            {
+
+                try
+                {
+
+                    await Task.Run(() => _currencyService.UpdateAllBasedCurrencyExchangeFixerIO());
+
+                }
+                catch (Exception ex)
+                {
+                    Serilog.Log.Error(DateTime.Now + " [ERR] DoWork " + ex.Message);
+                }
+                ScheduleNextRun();
+            }
+
+        }
+
+     
+    }
+}

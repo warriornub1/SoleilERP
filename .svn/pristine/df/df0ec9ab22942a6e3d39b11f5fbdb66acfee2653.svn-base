@@ -1,0 +1,336 @@
+namespace SERP.Application.Common.Constants
+{
+    public static class ErrorMessages
+    {
+        #region Generic
+        public const string ValidationError = "1 or more validation errors found";
+        public const string InternalServerError = "Unhandled exception. Contact administrator";
+        public const string ActionNotSupport = "Action Flag not support";
+        public const string StatusFlagNotSupport = "Status Flag not support";
+        public const string StatusFlagNotSupportInLine = "Status Flag not support in row: {0}.\n";
+        public const string ReceivedFromDocTypeNotSupport = "Received From Document Type not support";
+        public const string RequestIdNotFound = "Request Ids: {0} not found.";
+        #endregion
+
+        #region Grade
+        public const string GradeNotFound = "Grade not found";
+        public const string GradeAlreadyExists = "Grade already exists";
+        public const string ScoresOverlapped = "Scores overlaps with exisiting records";
+        #endregion
+
+        #region Project
+        public const string ProjectNotFound = "Project not found";
+        public const string ProjectAlreadyExists = "Project name already exists";
+        public const string ResultWindowOpened = "Result Window is open";
+        public const string ProjectAlreadyClosed = "Project already closed";
+        public const string RoleAlreadyExists = "Role already exists";
+        public const string RoleNotFound = "Role not found";
+        public const string ProjecRoleNotMatched = "Role is not assigned to the project";
+        public const string MemberNotFound = "Member not found";
+        public const string RoleAlreadyAssigned = "Role already assigned to the member";
+        public const string RequiredField = "{0} is required";
+        public const string RoleIsAssignedToMember = "Role is assigned to employee";
+        public const string ProjectNotClosed = "Project is not closed";
+        #endregion
+
+        #region Template
+        public const string TemplateNotFound = "Template not found";
+        public const string TemplateNameAndDepartmentAlreadyExists = "Template name already exist in Department.";
+        #endregion
+
+        #region Overall Template
+        public const string OverallTemplateNotFound = "OverallTemplate not found";
+        public const string OverallTemplateNotFoundID = "OverallTemplate not found {0}";
+        public const string OverallTemplateAlreadyExists = "Name : {0} in Department : {1} already exist.";
+        public const string OverallTemplateDifferentDepartment = "Mismatch of Template department : {0} and Overall Template department in id: {1}";
+        #endregion
+
+        #region Custom view
+        public const string CustomViewNotFound = "Custom View with '{0}' not found";
+        public const string CustomViewAlreadyExist = "Custom View '{0}' already exist";
+        public const string CustomViewAttributeNotFound = "Custom View Attribute '{0}' not found";
+        public const string CustomViewAttributeAlreadyExist = "Custom View Attribute '{0}' already exist";
+        public const string CustomViewFilterNotFound = "Custom View Filter with '{0}' not found";
+        public const string CustomViewFilterAlreadyExist = "Custom View Filter '{0}' already exist";
+        #endregion
+
+        #region Purchase Order
+        public const string PurchaseOrderNotFound = "Purchase Order with {0} '{1}' not found";
+        public const string POFileNotFound = "Purchase Order File with id {0} not found";
+        public const string InvalidDataFromRequest = "{0}: '{1}' must exisits in '{2}' table with status flag '{3}'";
+        public const string POLineNotFound = "Purchase Order Line with {0} '{1}' not found";
+        public const string PoQtyExceeds = "The Po Qty exceeds the PO line's open Qty at line no: {0}";
+        public const string CannotDeletePOLine = "Cannot delete PO lines with status other than Draft or New.";
+        public const string CannotDeletePOStatusNew = "Cannot delete PO, because PO Header Status is New, so all PO lines must have a status of New or Canceled.";
+        public const string CannotDeletePOStatusDraft = "Cannot delete PO, because PO Header Status is Draft, so all PO lines must have a status of Draft.";
+        public const string PurchaseOrderCanNotCloseByStatus = "Cannot close PO, PO Header status must not be Draft.";
+        #endregion
+
+        #region FileTracking
+        public const string FileTrackingNotFound = "File Tracking with id {0} not found";
+        public const string FileAlreadyExists = "File Tracking with {0} '{1}' already exist";
+        public const string FileNameDuplicated = "1 or more files have duplicated file name";
+        #endregion
+
+        #region Port
+        public const string PortNotFound = "Port with {0} '{1}' not found";
+        public const string PortAlreadyExists = "Port with {0} '{1}' already exist";
+        #endregion
+
+        #region Import
+        public const string UnsupportedImportFile = "Unsupported import file type: {0}";
+        public const string InvalidField = "Invalid {0} at rows: {1}";
+        public const string NotExistedInDatabase = "{0} '{1}' not existed in database at rows: {2}";
+        public const string MissingField = "Missing {0} at rows: {1}";
+        public const string DuplicateField = "Duplicate {0} at rows: {1}";
+        public const string ValueTooLongFromExcel = "{0} too long (>{1}) in rows: {2}";
+        public const string DuplicatedSupplierItemMapping = "Duplicated supplier item mapping key '{0}' in rows: {1}";
+        public const string IntermediarySupplierNotFound = "Intermediary supplier with {0} '{1}' not found";
+        #endregion
+
+        #region Advanced shipment notice
+        public const string AdvancedShipmentNoticeNotFound = "Advanced shipment notice with {0} '{1}' not found";
+        public const string ASNFileNotFound = "Advanced shipment notice File with id {0} not found";
+        public const string AsnQtyExceeds = "The ASN Qty exceeds the PO line's open Qty at line no: {0}";
+        public const string InvoiceQtyExceeds = "The Invoie Qty exceeds the PO line's open Qty of PO detail ID: {0}";
+        public const string SupplierNotMatch = "Supplier {0} doesn't match with one or more PO Supplier";
+        public const string CannotDeleteAsnStatusNew = "Cannot delete ASN, because ASN Header Status is New, so all ASN lines must have a status of New or Canceled.";
+        public const string CannotDeleteAsnStatusDraft = "Cannot delete ASN, because ASN Header Status is Draft, so all ASN lines must have a status of Draft.";
+        #endregion
+
+        #region Site
+        public const string SiteNotFound = "Site with {0} '{1}' not found";
+        public const string SiteAlreadyExists = "Site with {0} '{1}' already exist";
+        public const string SiteAlreadyExistsInOtherSite = "Site with {0} '{1}' already exist in another site";
+        #endregion
+
+        #region Branch Plant
+        public const string BranchPlantNotFound = "Branch Plant with {0} '{1}' not found";
+        public const string BranchPlantAlreadyExists = "Branch Plant with {0} '{1}' already exist";
+        #endregion
+
+        #region Agent
+        public const string AgentNotFound = "Agent with {0} '{1}' not found";
+        public const string AgentAlreadyExists = "Agent with {0} '{1}' already exist";
+        public const string AgentTypeInvalid = "The agent type '{0}' must exist in the LOV with the lovType 'AgentTypes' and have a status flag of Enabled";
+        #endregion
+
+        #region Country
+        public const string CountryNotFound = "Country with {0} '{1}' not found";
+        public const string CountryAlreadyExists = "Country with {0} '{1}' already exist";
+        #endregion
+
+        #region InboundShipment
+        public const string InboundShipmentNotFound = "Inbound shipment with {0} '{1}' not found";
+        public const string InboundShipmentBlAwbNotFound = "Inbound shipment Bl-Awb with {0} '{1}' not found";
+        public const string InboundShipmentAlreadyExists = "Inbound shipment with {0} '{1}' already exist";
+        public const string MappingAsnInvalidInboundShipmentId = "inbound_shipment_id '{0}' is not found in InboundShipmentRequest with status_flag of New";
+        public const string MappingAsnInvalidAsnHeaderId = "asn_header_id '{0}' is not found in ASNHeader table with status_flag not draf, cancelled or closed.";
+        public const string MappingAsnHeaderWithStatusNewInvalid = "asn_header_id '{0}' is not found in ASNHeader table with status_flag new.";
+
+        #endregion
+
+        #region Lov
+        public const string LovExceedMaxLength = "Lov exceeds allowable MaxLength";
+        public const string LovNotFound = "Lov with id {0} not found";
+        public const string LovListEmpty = "Lov list is empty";
+        public const string DuplicatedLovId = "Lov list contains duplicated id number.";
+        public const string LovReqMoreThanOneDefaultFlag = "LovType : {0}. Duplicated True default flag found in request list.";
+        public const string LovDBMoreThanOneDefaultFlag = "LovType: {0} with True default flag has already been created previously.";
+        public const string ValueMustExistingInLov = "{0} '{1}' must exist in LOV with the LovType {2} and have a status flag of Enabled";
+        #endregion
+
+        #region Company
+        public const string CompanyCodeFound = "Company code : {0} already created in database.\n";
+        public const string BaseCurrencyNotFound = "Base Currency Id: {0} with status flag: Enabled not found. \n";
+        public const string SiteIDNotFound = "Site id: {0} not found.";
+        public const string ParentIdNotFound = "Parent Id : {0} with group_type = CO and status_flag = E not found.\n";
+        public const string CompanyFlagNotAccepted = "{0} flag not in acceptable format.";
+        public const string CompanyNotFound = "Company with {0} in row '{1}' not found\n";
+        public const string DuplicatedCompanyId = "Company list contains duplicated id number.";
+        public const string DuplicatedCode = "Company list contains duplicated code.";
+        public const string RegisteredSiteNotFound = "Registered Site Id: {0} with status flag: Enabled not found.";
+        public const string CostCenterMappingFound = "Unable to delete. Request Id: {0} mapped in CostCenter.";
+        public const string RevenueCenterMappingFound = "Unable to delete. Request Id: {0} mapped in RevenueCenter.";
+        public const string BranchPlantMappingFound = "Unable to delete. Request Id: {0} mapped in BranchPlant.";
+        public const string DuplicatedIdCompany = "Unable to delete. Request list contains duplicated Id: {0}.";
+        public const string IdsNotFoundInDb = "Id not found: {0}";
+        public const string CompanyStructureIdNotFound = "Company Structure Id: {0} not found.";
+        public const string MissingDataRow = "Data is empty in row : {0}. \n";
+        public const string ParentGroupError = "Parent Group not found in row : {0}. \n";
+        public const string BaseCurrencyError = "Base Currency not found in row : {0}. \n";
+        public const string SiteNoError = "Site No not found in row : {0}. \n";
+        public const string IntercompanyError = "Intercompany flag not accepted in row : {0}. \n";
+        public const string DormantFlagError = "Dromant not accepted in row : {0}. \n";
+        public const string SiteFlagError = "Site not accepted in row : {0}. \n";
+        #endregion
+
+        #region ApplicationToken
+        public const string ApplicationTokenNotFound = "Application Code Not Found";
+        #endregion
+
+        #region BL-AWB
+        public const string BlAwbNotFound = "BL-AWB with {0} {1} not found";
+        #endregion
+
+        #region Group
+        public const string GroupIDNotFound = "Group ID: {0} not found.";
+        public const string GroupTypeNotFound = "GroupType not found in Lov.";
+        public const string ParentGroupIDDontExist = "Parent Group ID: {0} not found.";
+        public const string ParentGroupTypeNotTheSame = "Parent Group Type: {0} is not the same as the request group type: {1}.";
+        public const string ParentStatusFlagNotEnabled = "Parent Status Flag is not Enabled.";
+        public const string DuplicatedGroupId = "Group list contains duplicated id number.";
+        public const string DuplicatedGroupCode = "Group list contains duplicated Group Code number.";
+        public const string GroupCodeAlreadyExist = "Group Code: {0} already created.";
+        public const string GroupLevelExceedMaxGroupLevel = "Input Group Level: {0} exceeded the maximum allowable Group Level: {1} for Group Type: {2}.";
+        public const string ParentGroupIdNull = "Parent Group Id is not provided.";
+        public const string ParentGroupNotOneLevelHigher = "Parent Group level : {0} is not one level higher than request level: {1}.";
+        public const string GroupTypeNotSupported = "Group Type not supported.";
+        public const string DeleteGroupIsParent = "Delete id is a parent group. Id: {0}.";
+        public const string ExcelDataEmptyCode = "Empty {0} code. Row: {1}.";
+        public const string ExcelDataEmptyDescription = "Empty {0} description. Row: {1}.";
+        public const string ExcelDataEmptyLevel = "Empty {0} Level. Row: {1}";
+        public const string ExcelDataEmptyParentGroup = "Empty {0} Parent Group. Row: {1} and input level is below max level.";
+        public const string ExcelParentNotEmptyButMaxLevel = "Parent Group must be empty when inserting of data of Parent level in row: {0}.";
+        public const string ExcelDataEmptyStatus = "Empty {0} Status. Row: {1}";
+        public const string GroupLevelExceedMaxGroupLevelInExcel = "Input Group Level: {0} exceeded the maximum allowable Group Level: {1}. Row: {2}.";
+        public const string ParentGroupIDNotExistInExcel = "Parent Group: {0} not found in Group. Row: {1}.";
+        public const string ParentGroupTypeErrorInExcel = "Parent Type : {0} and request group type: {1} does not match in row {2}.";
+        public const string ParentGroupFlagErrorInExcel = "Parent Flag is Disabled in row {0}.";
+        public const string ParentGroupLevelErrorInExcel = "Request level is not one level below Parent level of a different group in row {0}.";
+        public const string RequestGroupFlagErrorInExcel = "Request level status flag not acceptable in row {0}.";
+        public const string RequestGroupLevelModification = "Modification of Group Level is not allowed if the parent is of a different group in row {0}.";
+        public const string RequestGroupStatusFlagModification = "Modification of Group Status Flag to {0} not allowed if the parent is of a different group in row {1}.";
+        public const string RequestMaxLevel = "Request level exceeded max allowable level: {0} in row {1}.";
+
+        #endregion
+
+        #region Currency
+        public const string CurrencyNotFound = "Currency with {0} '{1}' was not found.";
+        public const string ExchangeRateNotFound = "Exchange Rate was not found.";
+        #endregion
+
+        #region CostCenter
+        public const string CostCenterIDNotFound = "Group ID: {0} not found.";
+        public const string CostCenterCodeAlreadyExist = "Cost Center Code: {0} already in used.";
+        public const string CostCenterCompanyStructDuplicated = "Cost Center Company Structure number : {0} duplicated in database.";
+        public const string CostCenterNotFound = "Cost Center Not Found";
+
+        #endregion
+
+        #region RevenueCenter
+        public const string RevenueCenterCodeAlreadyExist = "Revenue Center Code: {0} already in used.";
+        public const string RevenueCenterIdNotFound = "Revenue Center Id not found: {0}.";
+        public const string RevenueCenterCompanyStructDuplicated = "Revenue Center Company Structure number : {0} duplicated in database.";
+        public const string CompanyStructureRevenueCenterNotFound = "Company Structure RevenueCenter not found.";
+        public const string CompanyStructureIdNotFoundRC = "Company Structure Id: {0} not found.";
+        public const string CompanyStructureOrganizationNoInUse = "Company Structure Organization number already in use: {0}.";
+        public const string RevenueCenterNotFound = "Revenue Center Not Found";
+
+        #endregion
+
+        #region NaturalAccount
+        public const string NaturalAccountIDNotFound = "Natural Account ID: {0} not found.";
+        public const string NaturalAccountCodeInUsed = "Natural Account Code {0} already in used.";
+        public const string NaturalAccountTypeNotFound = "Natural Account Type not found in LOV: {0}.";
+        public const string ParentIdNotFoundNaturalAccount = "Parent Ground Id not found : {0}.";
+        public const string NaturalAccountTypeNotAccepted = "Natural AccountType not accepted";
+        #endregion
+
+        #region file
+        public const string NotExcelFile = "Uploaded file is not an excel file.";
+        public const string ExceedMaximumFileSize = "Uploaded file size exceeded maximum allowable size of 10MB.";
+        public const string FileNotFound = "File Not Found.";
+        #endregion
+
+        #region Container
+        //public const string ContainerKeyAlreadyExists = "inbound_shipment_id and container_no already exists in databse: {0}";
+        //public const string DuplicateContainerKeyFromRequest = "Duplicate inbound_shipment_id and container_no: {0}";
+        public const string ContainerNotFound = "Container not found";
+        public const string ContainerStatusNotIncoming = "Can't delete container status not incoming: {0}";
+        public const string ContainerStatusIsNotIncoming = "Container No status is not Incoming";
+        public const string ContainerStatusIsNotReceived = "Container No  status is not Received";
+        public const string ContainerStatusIsNotUnloading = "Container No status is not Unloading";
+        public const string ContainerStatusIsNotUnloaded = "Container No status is not Unloaded";
+        public const string ContainerNoAdyExist = "Container No {0} already exist.";
+        public const string EitherIdOrContainerNoMustHaveValue = "Either Container Id or Container No must have a value";
+        public const string ContainerStatusMustBeIncomingOrUnverified = "Container status must be Incoming or Unverified";
+        public const string ContainerFileNotFound = "Container File not found";
+        public const string CanAddCreateUpdateContainerToAsn = "The container no must not exist in the Container table with a status other than Completed";
+        public const string ContainerShouldIncoming = "The container status must be Incoming";
+        public const string ContainerNoBlank = "The container no must not be blank if shipment type is not Loose";
+        public const string ContainerOnlyOneLooseInAsn = "Only 1 Container with shipment_type of L: Loose is allowed in 1 ASN.";
+        public const string ContainerShouldNotHasStatusCompleted = "Container No should not exisit in Container table with status that is not 4: Completed";
+        public const string DoesNotAllowToAddContainerAlreadyMapped = "Does not allow to add container already mapped with ASN";
+        #endregion
+
+        #region Supplier
+        public const string SupplierNotFound = "Supplier not found";
+        public const string SupplierNotFoundInDb = "Supplier with {0} '{1}' not found";
+        public const string SupplierMappingItemNotFoundInDb = "Supplier Mapping Item with {0} '{1}' not found";
+        public const string SupplierSecondaryNotFoundInDb = "Supplier Secondary with {0} '{1}' not found";
+        public const string SupplierIntermediaryNotFoundInDb = "Supplier Intermediary with {0} '{1}' not found";
+        public const string SupplierSelfCollectSiteNotFoundInDb = "Supplier Self Collect Site with {0} '{1}' not found";
+        public const string SupplierAlreadyExists = "Supplier with {0} '{1}' already exist";
+        public const string SupplierDefaultCurrencyNotFound = "Default Currency Id: {0} with status flag: Enabled not found.";
+        #endregion
+
+        #region Receiving 
+        public const string CountryOfOriginNotFound = "Country of Origin not found";
+        public const string PODetailNotFound = "PO Detail not found";
+        public const string ASNDetailNotFound = "ASN Detail not found";
+        public const string ASNDetailCanNotDelete = "ASN Detail with id '{0}' not found, can not delete";
+        public const string ReceivedQtyMoreThanOpenQty = "Received Qty is more than open qty";
+        public const string PODetailCancelled = "PO Detail is cancelled";
+        public const string ASNDetailCancelled = "ASN Detail is cancelled";
+        public const string ReceivingDetailNotFound = "Receiving Detail not found";
+        public const string ReceivingDetailCancelled = "Receiving Detail is cancelled";
+        public const string ReceivingDetailCannotBeDeleted = "Receiving Detail cannot be deleted";
+        public const string ReceivingHeaderNotFound = "Receiving Header not found";
+        public const string ReceivingHeaderStatusNotMatch = "Receiving is not allowed to update";
+        public const string ReceivingQtyCannotLessThanInspectedQty = "Receiving Qty cannot less than Inspected Qty";
+        public const string ItemUomConversionNotFound = "Item Uom Conversion not found";
+
+        public const string ContainerIdInvalidStatus = "If container_id is given, record must be found in Container table with status_flag must be Incoming or Received";
+        public const string ReceivingCannotBeDeleted = "Receiving cannot be deleted";
+        public const string ReceivingFileNotound = "Receiving File not found";
+        #endregion
+
+        #region Invoice
+        public const string InvoiceHeaderNotFound = "Invoice Header with {0} '{1}' not found";
+        public const string InvoiceDetailNotFound = "Invoice Detail with {0} '{1}' not found";
+        public const string InvoiceFileNotFound = "Invoice File with id {0} not found";
+        public const string CanNotAddInvoiceToAsn = "Invoice cannot be added to this ASN because it is already linked to another ASN";
+        public const string InvoiceSupplierDifferentWithAsn = "Invoice Supplier should not different with ASN Supplier";
+        public const string CanNotDeleteInvoiceToAsn = "Invoice cannot be deleted because it is not linked to any ASN yet";
+        #endregion
+
+        #region PackingList
+        public const string PackingListHeaderNotFound = "Packing Header with {0} '{1}' not found";
+
+        #endregion
+
+        #region RevenueCenterCompanyMappingRepository
+        public const string MappingAlreadyExist = "RevenueCenterCompanyMapping already exist. CompanyId: {0}, RevenueCenterId: {1}.";
+        public const string MappingNotFound = "RevenueCenterCompanyMapping not found. CompanyId: {0}, RevenueCenterId: {1}.";
+
+        #endregion
+
+        #region CommonError
+        public const string IdGreaterThanZero = "{0} must be greater than 0.";
+        public const string IsRequired = "{0} is required";
+        public const string LengthNotAccepted = "{0} is must not exceed {1} character length.";
+        public const string DuplicatedValues = "{0} : {1} duplicated in request list.";
+        #endregion
+
+        #region
+        public const string CompanyStructNotFound = "Company Structure not found";
+        public const string CompanyStructDisabled = "Company Structure : {0} status flag disabled.";
+        public const string CompanyStructParentInUse = "Company Structure Parent : {0} in use.";
+        public const string CostCenterContainsCompanyStructureID = "Cost Center contains CompanyStructureID : {0}.";
+        public const string RevenueCenterContainsCompanyStructureID = "Revenue Center contains CompanyStructureID : {0}.";
+        public const string EmployeeCompanyStructureMappingContainsCompanyStructureID = "Employee CompanyStructureMapping contains CompanyStructureID : {0}.";
+        #endregion
+
+    }
+}

@@ -1,0 +1,48 @@
+﻿using Microsoft.EntityFrameworkCore;
+using SERP.Application.Transactions.Containers.Interfaces;
+using SERP.Domain.Transactions.Containers;
+using SERP.Infrastructure.Common;
+using SERP.Infrastructure.Common.DBContexts;
+using System.Linq.Expressions;
+using SERP.Domain.Common.Constants;
+
+namespace SERP.Infrastructure.Transactions.Containers
+{
+    internal class ContainerASNRepository : GenericRepository<ContainerASN>, IContainerAsnRepository
+    {
+        public ContainerASNRepository(ApplicationDbContext dbContext) : base(dbContext)
+        {
+        }
+
+        public async Task<List<ContainerASN>> GetContainerAsnByConditionAsync(Expression<Func<ContainerASN, bool>> predicate)
+        {
+            return await _dbContext.ContainerASNs.Where(predicate).ToListAsync();
+        }
+
+        public async Task<bool> ValidateShipmentTypeInAsnAsync(int containerId, int asnHeaderId, string shipmentType)
+        {
+            // if shipment type is not "Loose", return true
+            if (!shipmentType.Equals(DomainConstant.Containers.ShipmentType.Loose))
+            {
+                return true;
+            }
+
+            var existingContainerShipmentType = from containerAsn in _dbContext.ContainerASNs
+                                                join container in _dbContext.Containers on containerAsn.container_id equals container.id
+                                                where containerAsn.asn_header_id == asnHeaderId && !string.IsNullOrEmpty(container.container_type)
+                                                select new Container
+                                                {
+                                                    id = container.id,
+                                                    shipment_type = container.shipment_type
+                                                };
+
+            if (containerId != 0)
+            {
+                existingContainerShipmentType = existingContainerShipmentType.Where(x => x.id != containerId);
+            }
+
+            // only one shipment type "Loose" is allowed
+            return await existingContainerShipmentType.CountAsync(x => x.shipment_type!.Equals(DomainConstant.Containers.ShipmentType.Loose)) <= 1;
+        }
+    }
+}

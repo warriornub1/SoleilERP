@@ -1,0 +1,32 @@
+﻿namespace SERP.Domain.Transactions.Receiving.Model
+{
+    public class ReceivingInfoModel :ReceivingHeaderDetail
+    {
+        public bool notes_to_warehouse_flag { get; set; }
+        public DateTime? unloaded_started { get; set; }
+        public DateTime? unloaded_end {  get; set; }
+        public string? unloaded_by { get; set; }
+        public ReceivingPos[]? pos { get; set; }
+        public ReceivingAsns? asns { get; set; }
+        public ReceivingSupplier? suppliers { get; set; }
+        public List<string> brands { get; set; }
+        public int branch_plant_id { get; set; }
+    }
+
+    public class ReceivingPos
+    {
+        public string po_no { get; set; }
+        public int po_header_id { get; set; }
+    }
+    public class ReceivingAsns
+    {
+        public string asn_no { get; set; }
+        public int asn_header_id { get; set; }
+    }
+    public class ReceivingSupplier
+    {
+        public int supplier_id { get; set; }
+        public string supplier_no { get; set; }
+        public string supplier_name { get; set; }
+    }
+}

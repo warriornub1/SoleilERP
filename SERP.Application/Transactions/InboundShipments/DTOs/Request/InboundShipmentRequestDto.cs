@@ -1,0 +1,53 @@
+﻿namespace SERP.Application.Transactions.InboundShipments.DTOs.Request
+{
+    public class InboundShipmentRequestDto
+    {
+        public int id { get; set; }
+        public int branch_plant_id { get; set; }
+        public string freight_method { get; set; }
+        public string incoterm { get; set; }
+        public DateOnly? cargo_ready_date { get; set; }
+        public DateOnly? port_of_loading_etd { get; set; }
+        public DateOnly? port_of_discharge_eta { get; set; }
+        public int country_of_loading_id { get; set; }
+        public int port_of_loading_id { get; set; }
+        public int country_of_discharge_id { get; set; }
+        public int port_of_discharge_id { get; set; }
+        public string? vessel_flight_no { get; set; }
+        public string? connecting_vessel_flight_no { get; set; }
+        public DateOnly? notice_of_arrival_date { get; set; }
+        public string? import_permit_no { get; set; }
+        public string? internal_remarks { get; set; }
+        public int? forwarder_agent_id { get; set; }
+        public string? forwarder_invoice_no { get; set; }
+        public decimal? forwarder_invoice_amt { get; set; }
+        public int? shipping_agent_id { get; set; }
+        public string? shipping_invoice_no { get; set; }
+        public decimal? shipping_invoice_amt { get; set; }
+        public int? insurance_agent_id { get; set; }
+        public int? forwarder_invoice_currency_id { get; set; }
+        public int? shipping_invoice_currency_id { get; set; }
+        public List<BlAwbRequestDto>?  bl_awb { get; set; }
+        public HashSet<int>? asnList { get; set; }
+    }
+
+    public class BlAwbRequestDto
+    {
+        public int bl_awb_id { get; set; }
+        public string bl_awb_no { get; set; }
+        public int supplier_id { get; set; }
+        public int? asn_header_id { get; set; }
+        public int? bl_awb_total_packages { get; set; }
+        public decimal? bl_awb_total_gross_weight { get; set; }
+        public decimal? bl_awb_volume { get; set; }
+        public string? bl_awb_cargo_description { get; set; }
+        //public List<BlAwbContainerRequestDto>? containers { get; set; }
+    }
+
+    public class BlAwbContainerRequestDto
+    {
+        public string container_no { get; set; }
+        public string shipment_type { get; set; }
+        public decimal weight { get; set; }
+    }
+}

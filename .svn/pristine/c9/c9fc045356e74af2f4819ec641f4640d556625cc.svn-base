@@ -1,0 +1,13 @@
+﻿namespace SERP.Domain.Finance.RevenueCenters.Model
+{
+    public class CompanyStructureRevenueCenterDb
+    {
+        public int? company_structure_id { get; set; }
+        public string org_no { get; set; }
+        public string org_code { get; set; }
+        public string org_description { get; set; }
+        public int? revenue_center_id { get; set; }
+        public int? parent_id { get; set; }
+        public int org_type { get; set; }
+    }
+}

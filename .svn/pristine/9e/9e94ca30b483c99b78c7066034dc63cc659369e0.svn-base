@@ -1,0 +1,14 @@
+{
+    "Logging": {
+        "LogLevel": {
+            "Default": "Information",
+            "Microsoft.AspNetCore": "Warning"
+        }
+    },
+    "AllowedHosts": "*",
+  "ConnectionStrings": {
+    "sqlConnection": "Data Source=(localdb)\\Local;Initial Catalog=SERP;TrustServerCertificate=True"
+  },
+    "FileServerPath": "https://ddxapp:65002/",
+    "FileDirectoryPath": "C:\\FileServer\\Soleil"
+}

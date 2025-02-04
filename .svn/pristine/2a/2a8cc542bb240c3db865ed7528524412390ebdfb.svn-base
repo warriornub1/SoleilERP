@@ -1,0 +1,250 @@
+﻿using AutoMapper;
+using Microsoft.AspNetCore.Mvc;
+using SERP.Api.Common;
+using SERP.Api.Common.FileServers;
+using SERP.Application.Masters.SystemKVSs.Services;
+using SERP.Application.Transactions.InboundShipments.DTOs.Request;
+using SERP.Application.Transactions.InboundShipments.Services;
+using SERP.Application.Transactions.PurchaseOrders.DTOs.Request;
+using SERP.Domain.Common.Constants;
+using SERP.Domain.Transactions.InboundShipments.Model;
+
+namespace SERP.Api.Controllers
+{
+    [Route("[controller]/[action]")]
+    [ApiController]
+    public class InboundShipmentController : ControllerBase
+    {
+        private readonly IMapper _mapper;
+        private readonly HttpContextService _httpContextService;
+        private readonly IInboundShipmentService _inboundShipmentService;
+        private readonly IWebHostEnvironment _webHostEnvironment;
+        private readonly ISystemKvsService _systemKvsService;
+
+        public InboundShipmentController(
+            IMapper mapper,
+            HttpContextService httpContextService,
+            IInboundShipmentService inboundShipmentService,
+            IWebHostEnvironment webHostEnvironment,
+            ISystemKvsService systemKvsService)
+        {
+            _mapper = mapper;
+            _httpContextService = httpContextService;
+            _inboundShipmentService = inboundShipmentService;
+            _webHostEnvironment = webHostEnvironment;
+            _systemKvsService = systemKvsService;
+        }
+
+        [HttpPost]
+        public IActionResult SearchRequestPaged(
+            [FromQuery] SearchPagedIsRequestModel model,
+            [FromBody] IsrFilterRequestModel filter)
+        {
+            var request = _mapper.Map<PagedFilterIsRequestDto>(model);
+            _mapper.Map(filter, request);
+            var result = _inboundShipmentService.ISRPagedFilterAsync(request);
+            return Ok(result);
+        }
+
+        [HttpPost]
+        public IActionResult SearchPaged(
+            [FromQuery] SearchPagedIsRequestModel model,
+            [FromBody] IshFilterRequestModel filter)
+        {
+            var request = _mapper.Map<PagedFilterIsRequestDto>(model);
+            _mapper.Map(filter, request);
+            var result = _inboundShipmentService.ISHPagedFilterAsync(request);
+            return Ok(result);
+        }
+
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [HttpPost]
+        public async Task<IActionResult> CreateInboundShipment([FromForm] List<CreateInboundShipmentRequestDto> models)
+        {
+            foreach (var createModel in models)
+            {
+                if (createModel.Attachments is null || createModel.Attachments.Count == 0)
+                {
+                    continue;
+                }
+
+                foreach (var ishUpload in createModel.Attachments)
+                {
+                    if (ishUpload.files.Count > 0)
+                    {
+                        await _systemKvsService.ValidateFileUploadAsync(ishUpload.files);
+                    }
+                }
+            }
+
+            var result = await _inboundShipmentService.CreateInboundShipmentAsync(_httpContextService.GetCurrentUserId(), models);
+            return Ok(new
+            {
+                id = result
+            });
+        }
+
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [HttpPut]
+        public async Task<IActionResult> UpdateInboundShipment([FromBody] List<UpdateInboundShipmentRequestDto> models)
+        {
+            //var request = _mapper.Map<List<InboundShipmentRequestDto>>(models);
+            await _inboundShipmentService.UpdateInboundShipmentAsync(_httpContextService.GetCurrentUserId(), models);
+            return Ok();
+        }
+
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [HttpPost("{inboundShipmentId:int}")]
+        public async Task<IActionResult> CreateInboundShipmentBlAwb(
+            [FromRoute] int inboundShipmentId,
+            [FromBody] List<InboundShipmentBLAWBRequestDto> models)
+        {
+            var result = await _inboundShipmentService.CreateInboundShipmentBlAwbAsync(_httpContextService.GetCurrentUserId(), inboundShipmentId, models);
+            return Ok(new
+            {
+                id = result
+            });
+        }
+
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [HttpPut("{inboundShipmentId:int}")]
+        public async Task<IActionResult> UpdateInboundShipmentBlAwb(
+            [FromRoute] int inboundShipmentId,
+            [FromBody] List<UpdateInboundShipmentBLAWBRequestDto> models)
+        {
+            await _inboundShipmentService.UpdateInboundShipmentBlAwbAsync(_httpContextService.GetCurrentUserId(), inboundShipmentId, models);
+            return Ok();
+        }
+
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [HttpGet("{id:int}")]
+        public async Task<IActionResult> GetById([FromRoute] int id)
+        {
+            var result = await _inboundShipmentService.GetByIdAsync(id);
+            return Ok(result);
+        }
+
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [HttpGet("{inboundShipmentNo}")]
+        public async Task<IActionResult> GetById([FromRoute] string inboundShipmentNo)
+        {
+            var result = await _inboundShipmentService.GetByInboundShipmentNoAsync(inboundShipmentNo);
+            return Ok(result);
+        }
+
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [HttpPost]
+        public async Task<IActionResult> UploadFile([FromForm] UploadIhsRequestModel model)
+        {
+            await _systemKvsService.ValidateFileUploadAsync(model.files);
+
+            var request = _mapper.Map<UploadIhsRequestDto>(model);
+
+            var fileInfos = new List<FileInfoRequestDto>();
+            foreach (var file in model.files)
+            {
+                fileInfos.Add(new FileInfoRequestDto
+                {
+                    file = file,
+                    url_path = FileServerHelper.SaveToResourceFolder(_webHostEnvironment.ContentRootPath, file,
+                        DomainConstant.Resources.ASNFile)
+                });
+            }
+
+            request.files = fileInfos;
+            try
+            {
+                var result = await _inboundShipmentService.UploadFileAsync(_httpContextService.GetCurrentUserId(), request);
+
+                return Ok(new
+                {
+                    PoFileIDs = result
+                });
+            }
+            catch
+            {
+                foreach (var item in fileInfos)
+                {
+                    if (!string.IsNullOrEmpty(item.url_path))
+                    {
+                        FileServerHelper.RemoveResourceFile(_webHostEnvironment.ContentRootPath, DomainConstant.Resources.ISHFile, item.url_path);
+                    }
+                }
+                throw;
+            }
+        }
+
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [HttpPost("{asnHeaderId:int}")]
+        public async Task<IActionResult> RemoveFile([FromRoute] int asnHeaderId, [FromBody] List<int> poFileIDs)
+        {
+            var filePath = await _inboundShipmentService.RemoveFileAsync(asnHeaderId, poFileIDs);
+
+            foreach (var path in filePath)
+            {
+                if (!string.IsNullOrEmpty(path))
+                {
+                    FileServerHelper.RemoveResourceFile(_webHostEnvironment.ContentRootPath, DomainConstant.Resources.ISHFile, path);
+                }
+            }
+
+            return Ok();
+        }
+
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [HttpPost("{inboundShipmentId:int}")]
+        public async Task<IActionResult> AddASN(
+            [FromRoute] int inboundShipmentId,
+            [FromBody] MappingAsnRequestModel model)
+        {
+            var request = new MappingAsnRequestDto
+            {
+                inboundShipmentId = inboundShipmentId,
+                asnList = model.asnList
+            };
+
+            await _inboundShipmentService.AddAsnAsync(_httpContextService.GetCurrentUserId(), request);
+            return Ok();
+        }
+
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [HttpPost("{inboundShipmentId:int}")]
+        public async Task<IActionResult> DeleteASN(
+            [FromRoute] int inboundShipmentId,
+            [FromBody] MappingAsnRequestModel model)
+        {
+            var request = new MappingAsnRequestDto
+            {
+                inboundShipmentId = inboundShipmentId,
+                asnList = model.asnList
+            };
+
+            await _inboundShipmentService.DeleteAsnAsync(_httpContextService.GetCurrentUserId(), request);
+            return Ok();
+        }
+
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [HttpPost]
+        public async Task<IActionResult> DeleteBlAwbLine([FromBody] List<int> blAwbIDs)
+        {
+            await _inboundShipmentService.DeleteBlAwbLineAsync(blAwbIDs);
+            return Ok();
+        }
+
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [HttpGet("{statusFlag}")]
+        public async Task<IActionResult> GetInboundShipmentRequestGroupList([FromRoute] string statusFlag)
+        {
+            var result = await _inboundShipmentService.GetInboundShipmentRequestGroupListAsync(statusFlag);
+            return Ok(result);
+        }
+
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [HttpDelete("{inboundShipmentId:int}")]
+        public async Task<IActionResult> DeleteInboundShipment([FromRoute] int inboundShipmentId)
+        {
+            await _inboundShipmentService.DeleteInboundShipmentAsync(_httpContextService.GetCurrentUserId(), inboundShipmentId);
+            return Ok();
+        }
+    }
+}

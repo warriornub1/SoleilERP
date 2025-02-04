@@ -1,0 +1,20 @@
+﻿using SERP.Application.Finance.RevenueCenters.DTOs.Request;
+using SERP.Application.Finance.RevenueCenters.DTOs.Response;
+using SERP.Application.Masters.Companies.DTOs.Request;
+using SERP.Domain.Common.Model;
+
+namespace SERP.Application.Finance.RevenueCenters.Services
+{
+    public interface IRevenueCenterService
+    {
+        Task<RevenueCenterResponseModel> GetByIdAsync(int id);
+        Task<PagedResponse<RevenueCenterResponseModel>> GetAllPagedAsync(int page, int pageSize);
+        Task<PagedResponse<RevenueCenterResponseModel>> SearchPagedAsync(int page, int pageSize, string keyword, SearchRevenueCenterRequestModel request);
+        Task CreateRevenueCenterAsync(CreateRevenueCenterRequestModel request, string userId);
+        Task UpdateRevenueCenterAsync(List<UpdateRevenueCenterRequestModel> requests, string userId);
+        Task<byte[]> GetRevenueCenterTemplate(string webRootPath);
+        Task DeleteRevenueCenterAsync(DeleteRevenueCenterRequestDto request);
+        Task<IEnumerable<RevenueCenterTreeResponseModel>> GetRevenueCenterTreeViewAsync();
+        Task ImportRevenueCenterAsync(string userId, ImportRevenueCenterRequestModel request);
+    }
+}

@@ -1,0 +1,36 @@
+﻿using Microsoft.AspNetCore.Mvc;
+using SERP.Application.Transactions.Test;
+using SERP.Domain.Transactions.PurchaseOrders;
+
+namespace SERP.Api.Controllers
+{
+    [Route("[controller]/[action]")]
+    [ApiController]
+    public class TestController : ControllerBase
+    {
+        private readonly ITestService _testService;
+
+        public TestController(ITestService testService)
+        {
+            _testService = testService;
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> GetAllPODetailsTest()
+        {
+            (string inCache, var result) = await _testService.TestGetAllPODetail();
+
+            return Ok(new PODetailTest
+            {
+                inCache = inCache,
+                result = result,
+            });
+        }
+    }
+
+    public class PODetailTest
+    {
+        public string inCache { get; set; }
+        public IEnumerable<PODetail> result { get; set; }
+    }
+}

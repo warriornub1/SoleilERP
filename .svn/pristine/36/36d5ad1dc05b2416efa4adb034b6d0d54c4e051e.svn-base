@@ -1,0 +1,562 @@
+﻿using AutoMapper;
+using ExcelDataReader;
+using FluentValidation;
+using SERP.Application.Common;
+using SERP.Application.Common.Constants;
+using SERP.Application.Common.Exceptions;
+using SERP.Application.Common.Helper;
+using SERP.Application.Finance.Groups.Interfaces;
+using SERP.Application.Finance.Natural_Accounts.DTOs;
+using SERP.Application.Finance.Natural_Accounts.DTOs.Request;
+using SERP.Application.Finance.Natural_Accounts.DTOs.Response;
+using SERP.Application.Finance.Natural_Accounts.DTOs.Validator;
+using SERP.Application.Finance.Natural_Accounts.Interface;
+using SERP.Application.Masters.Companies.Interfaces;
+using SERP.Application.Masters.Lovs.Interfaces;
+using SERP.Domain.Common.Constants;
+using SERP.Domain.Common.Model;
+using SERP.Domain.Finance.NaturalAccounts;
+using SERP.Domain.Finance.NaturalAccounts.Model;
+using System.Text;
+
+namespace SERP.Application.Finance.Natural_Accounts.Services
+{
+    public class NaturalAccountService : INaturalAccountService
+    {
+        private readonly IUnitOfWork _unitOfWork;
+        private readonly INaturalAccountRepository _naturalAccountRepository;
+        private readonly ILovRepository _lovRepository;
+        private readonly IGroupRepository _groupRepository;
+        private readonly ICompanyRepository _companyRepository;
+        private readonly IMapper _mapper;
+
+        public NaturalAccountService(IUnitOfWork unitOfWork, INaturalAccountRepository naturalAccountRepository, IGroupRepository groupRepository, ICompanyRepository companyRepository, ILovRepository lovRepository, IMapper mapper)
+        {
+            _unitOfWork = unitOfWork;
+            _naturalAccountRepository = naturalAccountRepository;
+            _groupRepository = groupRepository;
+            _companyRepository = companyRepository;
+            _lovRepository = lovRepository;
+            _mapper = mapper;
+        }
+
+        public async Task<PagedResponse<NaturalAccountModel>> GetAllPagedAsync(int page, int pageSize)
+        {
+            try
+            {
+                var pageable = PagingUtilities.GetPageable(page, pageSize);
+                var skipRow = PagingUtilities.GetSkipRow(pageable.Page, pageable.Size);
+                var naturalCenters = await _naturalAccountRepository.FindAllNaturalAccount();
+                List<NaturalAccountModel> naturalAccountResponse = _mapper.Map<List<NaturalAccountModel>>(naturalCenters);
+                int totalRows = naturalCenters.Count();
+                if (totalRows == 0)
+                    return new PagedResponse<NaturalAccountModel>();
+
+                var totalPage = (int)Math.Ceiling(totalRows / (double)pageable.Size);
+                var pagedResponse = naturalCenters.Skip(skipRow).Take(pageable.Size).ToList();
+
+                return new PagedResponse<NaturalAccountModel>
+                {
+                    Items = pagedResponse,
+                    TotalItems = totalRows,
+                    TotalPage = totalPage,
+                    Page = pageable.Page,
+                    PageSize = pageable.Size,
+                };
+            }
+            catch
+            {
+                throw;
+            }
+
+        }
+
+        public async Task<PagedResponse<NaturalAccountResponseModel>> SearchPagedAsync(int page, int pageSize, string keyword, SearchNaturalAccountRequestModel request)
+        {
+            var groupList = request.parentGroupList == null ? null : request.parentGroupList.Select(x => x.group_id).ToList();
+            var typeList = request.typeList == null ? null : request.typeList.Select(x => x.type).ToList();
+            var statusList = request.statusList == null ? null : request.statusList.Select(x => x.status).ToList();
+
+            var sortedNaturalAccount = await _naturalAccountRepository.NaturalAccountFilterPaged(request.create_date_from, request.create_date_to, groupList, typeList, statusList, keyword);
+
+            List<NaturalAccountResponseModel> naturalAccountResponse = _mapper.Map<List<NaturalAccountResponseModel>>(sortedNaturalAccount);
+            int totalRows = naturalAccountResponse.Count();
+            if (totalRows == 0)
+                return new PagedResponse<NaturalAccountResponseModel>();
+
+            var pageable = PagingUtilities.GetPageable(page, pageSize);
+            var skipRow = PagingUtilities.GetSkipRow(pageable.Page, pageable.Size);
+
+            var totalPage = (int)Math.Ceiling(totalRows / (double)pageable.Size);
+            var pagedResponse = naturalAccountResponse.Skip(skipRow).Take(pageable.Size).ToList();
+
+            return new PagedResponse<NaturalAccountResponseModel>
+            {
+                Items = pagedResponse,
+                TotalItems = totalRows,
+                TotalPage = totalPage,
+                Page = pageable.Page,
+                PageSize = pageable.Size,
+            };
+        }
+
+        public async Task<NaturalAccountResponseModel> GetByIdAsync(int id)
+        {
+            try
+            {
+                var naturalAccount = await _naturalAccountRepository.GetByIdAsync(x => x.id == id);
+
+                if (naturalAccount == null)
+                    throw new BadRequestException(ErrorCodes.NaturalAccountIDNotFound, string.Format(ErrorMessages.NaturalAccountIDNotFound, id));
+
+
+                var response = _mapper.Map<NaturalAccountResponseModel>(naturalAccount);
+
+                return response;
+            }
+            catch
+            {
+                throw;
+            }
+
+        }
+
+        public async Task CreateNaturalAccountAsync(CreateNaturalAccountRequestModel request, string userId)
+        {
+            try
+            {
+                var validator = new CreateNaturalAccountResponseModelValidator(_groupRepository, _lovRepository);
+                var validatorResult = await validator.ValidateAsync(request);
+                if (validatorResult.Errors.Any())
+                    throw new BadRequestException(validatorResult);
+
+                var naturalAccountCode = await _naturalAccountRepository.GetByIdAsync(x => x.natural_account_code == request.natural_account_code);
+                if (naturalAccountCode != null)
+                    throw new BadRequestException(ErrorCodes.NaturalAccountCodeInUsed, string.Format(ErrorMessages.NaturalAccountCodeInUsed, request.natural_account_code));
+
+                //var naturalAccountType = await _lovRepository.GetByIdAsync(x => x.lov_type == request.natural_account_type);
+                //if (naturalAccountType == null)
+                //    throw new BadRequestException(ErrorCodes.NaturalAccountTypeNotFound, string.Format(ErrorMessages.NaturalAccountTypeNotFound, request.natural_account_code));
+
+                //var parentGroundAccount = await _groupRepository.GetByIdAsync(x => x.id == request.parent_group_id && x.group_type == DomainConstant.Group.GroupType.NaturalAccount && x.status_flag == DomainConstant.StatusFlag.Enabled);
+                //if (parentGroundAccount == null)
+                //    throw new BadRequestException(ErrorCodes.ParentGroupIDDontExist, string.Format(ErrorMessages.ParentGroupIDDontExist, request.parent_group_id));
+
+
+
+                NaturalAccount na = new NaturalAccount
+                {
+                    natural_account_code = request.natural_account_code,
+                    natural_account_description = request.natural_account_description,
+                    natural_account_type = request.natural_account_type,
+                    parent_group_id = request.parent_group_id,
+                    status_flag = request.status_flag,
+                    created_by = userId,
+                    created_on = DateTime.Now,
+                };
+
+                await _naturalAccountRepository.CreateAsync(na);
+                await _unitOfWork.SaveChangesAsync();
+
+            }
+            catch
+            {
+                throw;
+            }
+        }
+
+        public async Task DeleteNaturalAccountAsync(DeleteNaturalAccountRequestModel request)
+        {
+            try
+            {
+
+                var validator = new DeleteNaturalAccountRequestModelValidator();
+                var validatorResult = validator.Validate(request);
+                if (validatorResult.Errors.Any())
+                    throw new BadRequestException(validatorResult);
+
+
+                var duplicated_naID = request.naturalAccountList.Select(x => x)
+                                            .GroupBy(x => x.id)
+                                            .Where(x => x.Count() > 1)
+                                            .Select(x => x.Key)
+                                            .ToList();
+
+                if (duplicated_naID.Count() > 0)
+                    throw new BadRequestException(ErrorCodes.DuplicatedCompanyId, string.Format(ErrorMessages.DuplicatedValues, "Natural Account Id", string.Join(", ", duplicated_naID)));
+
+                var companyId = request.naturalAccountList.Select(y => y.id).ToList();
+
+                var naturalAccounts = await _naturalAccountRepository.FindMultiple(x => companyId.Contains(x.id));
+
+                var idNotFound = companyId.Except(naturalAccounts.Select(x => x.id).ToList());
+                if (idNotFound.Any())
+                    throw new BadRequestException(ErrorCodes.NaturalAccountIDNotFound, string.Format(ErrorMessages.NaturalAccountIDNotFound, string.Join(", ", idNotFound)));
+
+                await _naturalAccountRepository.DeleteRangeAsync(naturalAccounts);
+                await _unitOfWork.SaveChangesAsync();
+
+            }
+            catch
+            {
+                throw;
+            }
+        }
+
+        public async Task UpdateNaturalAccountAsync(List<UpdateNaturalAccountRequestModel> requests, string userId)
+        {
+            try
+            {
+                var validator = new UpdateNaturalAccountRequestModelValidator();
+
+                foreach (var model in requests)
+                {
+                    var validationResult = validator.Validate(model);
+                    if (!validationResult.IsValid)
+                    {
+                        if (validationResult.Errors.Any())
+                            throw new BadRequestException(validationResult);
+
+                    }
+                }
+
+                var duplicatedId = requests.GroupBy(x => x.id)
+                                           .Where(x => x.Count() > 1)
+                                           .Select(x => x.Key)
+                                           .ToList();
+
+                if (duplicatedId.Count() > 0)
+                    throw new BadRequestException(ErrorCodes.DuplicatedNaturalAccountId, string.Format(ErrorMessages.DuplicatedValues, "Id", string.Join(", ", duplicatedId)));
+
+                var duplicatedCode = requests.GroupBy(x => x.natural_account_code)
+                                             .Where(x => x.Count() > 1)
+                                             .Select(x => x.Key)
+                                              .ToList();
+
+                if (duplicatedCode.Count() > 0)
+                    throw new BadRequestException(ErrorCodes.DuplicatedNaturalAccountCode, string.Format(ErrorMessages.DuplicatedValues, "Natural Account Code", string.Join(", ", duplicatedCode)));
+
+
+
+                var code_list = requests.Select(x => ( x.natural_account_code, x.id) ).ToList();
+                var accountType = requests.Select(x => x.natural_account_type).Distinct().ToList();
+                var parentGroupId = requests.Select(x => x.parent_group_id).Distinct().ToList();
+
+                // Reject if code (modified) is exists in NaturalAccount table
+                var naturalAccountHashset =  await _naturalAccountRepository.NaturalAccountGetCodes(code_list);
+                if(naturalAccountHashset.Count() > 0)
+                    throw new BadRequestException(ErrorCodes.NaturalAccountCodeInUsed, string.Format(ErrorMessages.NaturalAccountCodeInUsed, string.Join(", ", naturalAccountHashset)));
+
+
+                // Reject if natural_account_type is not exist in LOV table
+                var naturalAccountSet = await _lovRepository.FindNaturalAccountType(accountType);
+                var naturalAccountNotFound = accountType.Except(naturalAccountSet);
+                if (naturalAccountNotFound.Count() > 0)
+                    throw new BadRequestException(ErrorCodes.NaturalAccountTypeNotFound, string.Format(ErrorMessages.NaturalAccountTypeNotFound, string.Join(", ", naturalAccountNotFound)));
+
+                // Reject if parent_group_id(modified) is not exist in Group table with group_type = NA, status_flag = E
+                var findParentId = await _groupRepository.GetIdWithFlag(parentGroupId, DomainConstant.Group.GroupType.NaturalAccount, DomainConstant.StatusFlag.Enabled);
+                var parentIdNotFound = parentGroupId.Except(findParentId);
+                if(parentIdNotFound.Count() > 0)
+                    throw new BadRequestException(ErrorCodes.ParentIdNotFoundNaturalAccount, string.Format(ErrorMessages.ParentIdNotFoundNaturalAccount, string.Join(", ", parentIdNotFound)));
+
+                var requestIds = requests.Select(y => y.id);
+                var naturalAccounts = await _naturalAccountRepository.FindMultiple(x => requestIds.Contains(x.id));
+
+                // Reject if Id is not found
+                var idNotFound = requestIds.Except(naturalAccounts.Select(x => x.id));
+                if(idNotFound.Count() > 0)
+                    throw new BadRequestException(ErrorCodes.NaturalAccountIDNotFound, string.Format(ErrorMessages.NaturalAccountIDNotFound, string.Join(", ", idNotFound)));
+
+
+                var naToUpdate = new List<NaturalAccount>();
+
+                foreach (var request in requests)
+                {
+                    var NA = naturalAccounts.Where(x => x.id == request.id).FirstOrDefault();
+
+                    NA.natural_account_code = request.natural_account_code;
+                    NA.natural_account_description = request.natural_account_description;
+                    NA.natural_account_type = request.natural_account_type;
+                    NA.parent_group_id = request.parent_group_id;
+                    NA.status_flag = request.status_flag;
+                    NA.last_modified_by = userId;
+                    NA.last_modified_on = DateTime.Now;
+                    naToUpdate.Add(NA);
+                }
+
+                await _naturalAccountRepository.UpdateRangeAsync(naToUpdate);
+                await _unitOfWork.SaveChangesAsync();
+            }
+            catch
+            {
+                throw;
+            }
+        }
+
+        public async Task<byte[]> GetNaturalAccountTemplate(string webRootPath)
+        {
+            try
+            {
+                string filePath = Path.Combine(webRootPath, ApplicationConstant.wwwRootFileName.NaturalAccount);
+                if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath))
+                    throw new BadRequestException(ErrorCodes.FileNotFound, ErrorMessages.FileNotFound);
+
+                byte[] fileBytes = await File.ReadAllBytesAsync(filePath);
+                return fileBytes;
+
+            }
+            catch
+            {
+                throw;
+            }
+        }
+
+        public async Task<IEnumerable<NaturalAccountTreeResponseModel>> GetNaturalAccountTreeViewAsync()
+        {
+            var levelFourGroups = await _groupRepository.GetLevelFourGroup(DomainConstant.Group.GroupTypeMaxLevel.NaturalAccount, DomainConstant.Group.GroupType.NaturalAccount);
+
+            List<NaturalAccountTreeResponseModel> response = new List<NaturalAccountTreeResponseModel>();
+
+            foreach (var levelFourGroup in levelFourGroups)
+            {
+                response.Add(new NaturalAccountTreeResponseModel
+                {
+                    group_id = levelFourGroup.id,
+                    group_code = levelFourGroup.group_code,
+                    group_description = levelFourGroup.group_description,
+                    status_flag = levelFourGroup.status_flag,
+                    level = levelFourGroup.level,
+                    child_group_list = await GetSubNaturalAccount(levelFourGroup.id, DomainConstant.Group.GroupTypeMaxLevel.NaturalAccount)
+                });
+            }
+            return response;
+        }
+
+        private async Task<List<NaturalAccountTreeResponseModel>> GetSubNaturalAccount(int parentId, int level)
+        {
+            var groups = await _groupRepository.GetChild(parentId, DomainConstant.Group.GroupType.NaturalAccount);
+
+            if (groups.Count() == 0)
+                return null;
+
+            var result = new List<NaturalAccountTreeResponseModel>();
+
+            foreach (var group in groups)
+            {
+                NaturalAccountTreeResponseModel naturalAccountResponse = new NaturalAccountTreeResponseModel
+                {
+                    group_id = group.id,
+                    group_code = group.group_code,
+                    group_description = group.group_description,
+                    status_flag = group.status_flag,
+                    level = group.level,
+                    child_group_list = await GetSubNaturalAccount(group.id, level - 1)
+                };
+
+                if (group.level == 1)
+                {
+                    var naturalAccounts = await _naturalAccountRepository.GetNaturalAccountViaParentID(parentId);
+                    List<NaturalAccountList> naturalAccountLists = new List<NaturalAccountList>();
+                    foreach (var naturalAccount in naturalAccounts)
+                    {
+                        naturalAccountLists.Add(new NaturalAccountList
+                        {
+                            id = naturalAccount.id,
+                            natural_account_code = naturalAccount.natural_account_code,
+                            natural_account_description = naturalAccount.natural_account_description,
+                            status_flag = naturalAccount.status_flag,
+                        });
+                    }
+                    if (naturalAccountLists.Count > 0)
+                        naturalAccountResponse.natural_account_list = naturalAccountLists;
+                }
+                result.Add(naturalAccountResponse);
+
+            }
+
+            return result;
+        }
+
+        public async Task ImportNaturalAccountAsync(string userId, ImportNaturalAccountRequestModel request)
+        {
+            string localFilePath = "";
+
+            try
+            {
+                if (!FileHelper.IsExcelFile(request.File.ContentType))
+                    throw new BadRequestException(ErrorCodes.NotExcelFile, ErrorMessages.NotExcelFile);
+
+                var currentTime = DateTime.Now;
+                localFilePath = $"App_Data/file-uploads/{currentTime.Year}/{currentTime.Month}/{currentTime.Day}/";
+                await FileHelper.SaveFileToTemporaryFolder(request.File, request.File.FileName, localFilePath);
+                var inputFilePath = Path.Combine(localFilePath, request.File.FileName);
+                List<NaturalAccountDto> excelData = await ReadExcelDataGroup(inputFilePath);
+                await validateExcelData(userId, excelData);
+
+            }
+            catch (Exception e)
+            {
+                throw;
+            }
+            finally
+            {
+                if (!string.IsNullOrEmpty(localFilePath))
+                    Directory.Delete(localFilePath, true);
+            }
+        }
+
+        private async Task<List<NaturalAccountDto>> ReadExcelDataGroup(string inputFilePath)
+        {
+            List<NaturalAccountDto> excelData = new List<NaturalAccountDto>();
+
+            await using (var stream = File.Open(inputFilePath, FileMode.Open, FileAccess.Read))
+            {
+                using (var reader = ExcelReaderFactory.CreateReader(stream))
+                {
+                    var rowIndex = 1;
+                    reader.Read();
+                    while (reader.Read())
+                    {
+                        if (rowIndex != 0)
+                        {
+                            NaturalAccountDto rowData = new NaturalAccountDto();
+                            rowData.code = reader.IsDBNull(0) ? null : reader.GetValue(0).ToString();
+                            rowData.description = reader.IsDBNull(1) ? null : reader.GetValue(1).ToString();
+                            rowData.parentGroup = reader.IsDBNull(2) ? null : reader.GetValue(2).ToString();
+                            rowData.type = reader.IsDBNull(3) ? null : reader.GetValue(3).ToString();
+                            rowData.status = reader.IsDBNull(4) ? null : reader.GetValue(4).ToString();
+                            excelData.Add(rowData);
+                        }
+                    }
+                }
+            }
+            return excelData;
+
+        }
+
+        private async Task validateExcelData(string userId, List<NaturalAccountDto> excelData)
+        {
+            try
+            {
+                int row = 1;
+                StringBuilder sb = new StringBuilder();
+                HashSet<int> missingDataRow = new HashSet<int>();
+                HashSet<int> invalidStatusFlag = new HashSet<int>();
+                HashSet<int> parentGroupError = new HashSet<int>();
+                HashSet<int> typeError = new HashSet<int>();
+
+
+                List<NaturalAccount> createList = new List<NaturalAccount>();
+                List<NaturalAccount> updateList = new List<NaturalAccount>();
+
+                var parentGroupList = excelData.Where(x => x.parentGroup != null)
+                               .Select(x => x.parentGroup)
+                               .ToList();
+
+
+                var type = excelData.Where(x => x.type != null)
+                                       .Select(x => x.type)
+                                       .Distinct()
+                                       .ToList();
+
+                var code = excelData.Where(x => x.code != null)
+                                    .Select(x => x.code)
+                                    .Distinct()
+                                    .ToList();
+
+
+                var getIDByParentGroupNo = await _groupRepository.GetIDByParentGroupNo(parentGroupList, DomainConstant.Group.GroupType.NaturalAccount);
+                var naTypeDictionary = await _lovRepository.FindNaturalAccountType(type);
+                var naDictionary = await _naturalAccountRepository.GetNaturalAccountDictionary(code);
+
+
+                foreach (var data in excelData)
+                {
+                    if (data.code is null || data.code == null ||
+                        data.description is null || data.description == null ||
+                        data.parentGroup is null || data.parentGroup == null ||
+                        data.type is null || data.type == null ||
+                        data.status is null || data.status == null)
+                    {
+                        missingDataRow.Add(row);
+                    }
+
+                    if (!(data.status == DomainConstant.StatusFlag.Enabled || data.status == DomainConstant.StatusFlag.Disabled))
+                    {
+                        invalidStatusFlag.Add(row);
+                    }
+
+                    // Reject if parent_group_no is not exist in Group table with group_type=RC, status_flag=E
+                    if (!getIDByParentGroupNo.Keys.Contains(data.parentGroup))
+                        parentGroupError.Add(row);
+
+                    if (data.type != null && !naTypeDictionary.Contains(data.type))
+                        typeError.Add(row);
+                    row++;
+                }
+
+                if (missingDataRow.Count > 0)
+                    sb.Append(string.Format(ErrorMessages.MissingDataRow, string.Join(", ", missingDataRow)));
+
+                if (parentGroupError.Count > 0)
+                    sb.Append(string.Format(ErrorMessages.ParentGroupError, string.Join(", ", parentGroupError)));
+
+                if (typeError.Count > 0)
+                    sb.Append(string.Format(ErrorMessages.NaturalAccountTypeNotFound, string.Join(", ", typeError)));
+
+                if (invalidStatusFlag.Count > 0)
+                    sb.Append(string.Format(ErrorMessages.StatusFlagNotSupportInLine, string.Join(", ", invalidStatusFlag)));
+
+
+                if (sb.Length != 0)
+                    throw new BadRequestException(ErrorCodes.ImportError, sb.ToString());
+
+                else
+                {
+                    foreach (var data in excelData)
+                    {
+                        if (!naDictionary.Keys.Contains(data.code))
+                        {
+                            createList.Add(new NaturalAccount
+                            {
+                                natural_account_code = data.code,
+                                natural_account_description = data.description,
+                                natural_account_type = data.type,
+                                parent_group_id = getIDByParentGroupNo.GetValueOrDefault(data.parentGroup, 0),
+                                status_flag = data.status,
+                                created_by = userId,
+                                created_on = DateTime.Now
+                            });
+
+                        }
+                        else
+                        {
+                            naDictionary[data.code].natural_account_code = data.code;
+                            naDictionary[data.code].natural_account_description = data.description;
+                            naDictionary[data.code].parent_group_id = getIDByParentGroupNo.GetValueOrDefault(data.parentGroup, 0);
+                            naDictionary[data.code].status_flag = data.status;
+                            naDictionary[data.code].last_modified_by = userId;
+                            naDictionary[data.code].last_modified_on = DateTime.Now;
+                            updateList.Add(naDictionary[data.code]);
+                        }
+                    }
+
+                    if (createList.Count > 0)
+                        await _naturalAccountRepository.CreateRangeAsync(createList);
+
+                    if (updateList.Count > 0)
+                        await _naturalAccountRepository.UpdateRangeAsync(updateList);
+
+                    await _unitOfWork.SaveChangesAsync();
+                }
+
+            }
+            catch
+            {
+                throw;
+            }
+        }
+
+    }
+}

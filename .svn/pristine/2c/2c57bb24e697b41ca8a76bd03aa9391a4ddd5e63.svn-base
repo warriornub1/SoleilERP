@@ -1,0 +1,404 @@
+﻿namespace SERP.Domain.Common.Constants
+{
+    public static class DomainConstant
+    {
+        public const string ResourceFolder = "Resources";
+        public const int FirstTable = 0;
+
+        public class DefaultSortField
+        {
+            public const string ISH = "inbound_shipment.created_on";
+            public const string ISR = "inbound_shipment_request.created_on";
+            public const string ASN = "created_on";
+            public const string ASNDetail = "detail_id";
+            public const string PO = "id";
+            public const string PODetail = "detail_id";
+            public const string Container = "id";
+            public const string Agent = "id";
+            public const string BranchPlant = "id";
+            public const string CustomView = "id";
+            public const string Supplier = "id";
+            public const string SupplierItemMapping = "supplier_item_mapping_id";
+            public const string SupplierSecondary = "seconday_supplier_id";
+            public const string SupplierIntermediary = "intermediary_supplier_id";
+            public const string SupplierSelfCollectSite = "id";
+            public const string PackingList = "details.id";
+            public const string InvoiceHeader = "id";
+            public const string InvoiceDetail = "detail_id";
+            public const string ReceivingHeader = "id";
+
+        }
+
+        public class StatusFlag
+        {
+            public const string Enabled = "E";
+            public const string Disabled = "D";
+            public const string Yes = "1";
+            public const string No = "0";
+            public const string YesChar = "Y";
+            public const string NoChar = "N";
+        }
+
+		public class ActionFlag
+        {
+            public const string Delete = "D";
+            public const string Update = "U";
+            public const string Create = "C";
+
+        }
+
+        public static class Action
+        {
+            public const string Draft = "draft";
+            public const string Submit = "submit";
+        }
+
+        public static class Resources
+        {
+            public const string POFile = "POFiles";
+            public const string ASNFile = "ASNFiles";
+            public const string ISHFile = "ISHFiles";
+            public const string InvoiceFile = "InvoiceFile";
+            public const string CONTAINERFile = "CONTAINERFiles";
+            public const string RECEVINGFile = "RECEIVINGFiles";
+        }
+
+        public static class SequenceTracking
+        {
+            public static class Type
+            {
+                public const string PurchaseOrder = "PO";
+                public const string AdvancedShipmentNotice = "ASN";
+                public const string InboundShipment = "ISH";
+                public const string InboundShipmentRequest = "ISR";
+                public const string InboundShipmentRequestGroup = "ISG";
+                public const string Receiving = "REC";
+                public const string PackingList = "PL";
+            }
+        }
+
+        public static class LOVs
+        {
+            public static class Type
+            {
+                public const string PoSendMethod = "POSendMethods";
+                public const string PaymentTerm = "PaymentTerms";
+                public const string CostRule = "CostRules";
+                public const string IncoTerm = "IncoTerms";
+                public const string FreightMethod = "FreightMethods";
+                public const string PaymentMethods = "PaymentMethods";
+                public const string AgentTypes = "AgentTypes";
+                public const string UrgencyCodes = "UrgencyCodes";
+            }
+        }
+
+        public static class PurchaseOrder
+        {
+            public static class StatusFlag
+            {
+                public const string Draft = "01";
+                public const string New = "02";
+                public const string InProcess = "11";
+                public const string Closed = "30";
+                public const string Cancelled = "90";
+            }
+
+            public static class Type
+            {
+                public const string StandardOrder = "STO";
+                public const string DirectShipment = "DIS";
+                public const string IntermediaryOrder = "ITO";
+                public const string DirectFromSalesOrder = "DSO";
+            }
+
+            public static class LineType
+            {
+                public const string Item = "ITEM";
+                public const string Service = "SER";
+                public const string AirFreight = "AF";
+                public const string SeaFreight = "SF";
+                public const string LandFreight = "LF";
+                public const string MiscCharges = "MISC";
+            }
+        }
+
+        public static class PurchaseOrderDetail
+        {
+            public static class StatusFlag
+            {
+                public const string Draft = "01";
+                public const string New = "02";
+                public const string InProcess = "11";
+                public const string Closed = "30";
+                public const string Cancelled = "90";
+            }
+        }
+        public static class AdvancedShipmentNotices
+        {
+            public static class StatusFlag
+            {
+                public const string Draft = "01";
+                public const string New = "02";
+                public const string InProcess = "11";
+                public const string Closed = "30";
+                public const string Cancelled = "90";
+            }
+        }
+        public static class AdvancedShipmentNoticesDetail
+        {
+            public static class StatusFlag
+            {
+                public const string Draft = "01";
+                public const string New = "02";
+                public const string InProcess = "11";
+                public const string Closed = "30";
+                public const string Cancelled = "90";
+            }
+        }
+
+        public static class InboundShipments
+        {
+            public static class StatusFlag
+            {
+                public const string Draft = "01";
+                public const string New = "02";
+                public const string Received = "11";
+                public const string Closed = "30";
+                public const string Cancelled = "90";
+            }
+        }
+
+        public static class InboundShipmentsRequest
+        {
+            public static class StatusFlag
+            {
+                public const string New = "02";
+                public const string Arranged = "10";
+                public const string Cancelled = "90";
+            }
+        }
+
+        public static class Containers
+        {
+            public static class StatusFlag
+            {
+                public const string Incoming = "0";
+                public const string Received = "1";
+                public const string Unloading = "2";
+                public const string Unloaded = "3";
+                public const string Completed = "4";
+                public const string Unverified = "9";
+            }
+
+            public static class ShipmentType
+            {
+                public const string Loose = "L";
+                public const string Full = "F";
+            }
+        }
+
+        public static class ContainerFiles
+        {
+            public static class ContainerFileType
+            {
+                public const string ContainerIn = "CI";
+                public const string ContainerOut = "CO";
+                public const string ContainerUnloading = "CU";
+            }
+        }
+
+        public static class Agents
+        {
+            public static class Type
+            {
+                public const string Forwarder = "FOR";
+                public const string ShippingInsurance = "SHINS";
+                public const string Shipping = "SHP";
+            }
+        }
+
+        public static class Group
+        {
+            public static class GroupType
+            {
+                public const string Company = "CO";
+                public const string NaturalAccount = "NA";
+                public const string CostCenter = "CC";
+                public const string RevenueCenter = "RC";
+            }
+
+
+            public static class GroupTypeMaxLevel
+            {
+                public const int Company = 4;
+                public const int NaturalAccount = 4;
+                public const int CostCenter = 3;
+                public const int RevenueCenter = 2;
+            }
+
+            public static class GroupLevel
+            {
+                public const int Parent = 1;
+            }
+        }
+
+        public static class NaturalAccount
+        {
+            public static class NaturalAccountType
+            {
+                public const string Asset = "AS";
+                public const string Liability = "LB";
+                public const string Shareholders_Equity = "SE";
+                public const string PAndL = "PL";
+            }
+        }
+
+        public static class RcvHeader
+        {
+            public static class StatusFlag
+            {
+                public const string Draft = "01";
+                public const string PendingPackingList = "03";
+                public const string Received = "11";
+                public const string InspectorAssigned = "12";
+                public const string InspectionInProgress = "13";
+                public const string InspectionForVerify = "14";
+                public const string InspectionForCorrection = "15";
+                public const string InspectionCompleted = "16";
+                public const string InspectionCompletedDiscrepancy = "26";
+                public const string CompletedDiscrepancy = "31";
+                public const string Completed = "30";
+                public const string Cancelled = "90";
+            }
+        }
+        public static class RcvDetail
+        {
+            public static class StatusFlag
+            {
+                public const string Draft = "01";
+                public const string Received = "11";
+                public const string InspectionInProgress = "13";
+                public const string InspectionCompleted = "16";
+                public const string InspectionCompletedDiscrepancy = "26";
+                public const string CompletedDiscrepancy = "31";
+                public const string Completed = "30";
+                public const string Cancelled = "90";
+            }
+        }
+
+        public static class InvoiceHeader
+        {
+            public static class StatusFlag
+            {
+                public const string Draft = "01";
+                public const string New = "02";
+                public const string Closed = "30";
+                public const string Cancelled = "90";
+            }
+        }
+
+        public static class InvoiceDetail
+        {
+            public static class StatusFlag
+            {
+                public const string Draft = "01";
+                public const string New = "02";
+                public const string Closed = "30";
+                public const string Cancelled = "90";
+            }
+        }
+
+        public static class SupplierExcelColumns
+        {
+            public const int SupplierNo = 0;
+            public const int SupplierName = 1;
+            public const int StatusFlag = 2;
+            public const int POSendingMethod = 3;
+            public const int AuthorisedFlag = 4;
+            public const int PaymentTerm = 5;
+            public const int PaymentMethod = 6;
+            public const int DefaultCurrency = 7;
+            public const int CostRule = 8;
+            public const int IncoTerm = 9;
+            public const int ProductFlag = 10;
+            public const int IntermediarySupplierNo = 11;
+            public const int DefaultFreightMethod = 12;
+            public const int DefaultCountryOfLoading = 13;
+            public const int DefaultPortOfLoading = 14;
+            public const int DefaultCountryOfDischarge = 15;
+            public const int DefaultPortOfDischarge = 16;
+            public const int SiteNo = 17;
+        }
+
+        public static class ItemExcelColumns
+        {
+            public const int ItemNo = 0;
+            public const int Description1 = 1;
+            public const int Description2 = 2;
+            public const int Brand = 3;
+            public const int PrimaryUOM = 4;
+            public const int SecondaryUOM = 5;
+            public const int PurchasingUOM = 6;
+            public const int StatusFlag = 7;
+            public const int PurchaseMinOrderQty = 8;
+            public const int PurchaseMultipleOrderQty = 9;
+        }
+
+        public static class SupplierItemExcelColumns
+        {
+            public const int SupplierNo = 0;
+            public const int ItemNo = 1;
+            public const int SupplierPartNumber = 2;
+            public const int SupplierMaterialCode = 3;
+            public const int SupplierMaterialDescription = 4;
+            public const int DefaultFlag = 5;
+            public const int StatusFlag = 6;
+        }
+
+        public static class SupplierSecondaryExcelColumns
+        {
+            public const int SupplierNo = 0;
+            public const int SecondarySupplierNo = 1;
+            public const int SecondarySupplierName = 2;
+        }
+
+        public static class SiteExcelColumns
+        {
+            public const int SiteNo = 0;
+            public const int SiteName = 1;
+            public const int AddressLine1 = 2;
+            public const int AddressLine2 = 3;
+            public const int AddressLine3 = 4;
+            public const int AddressLine4 = 5;
+            public const int City = 6;
+            public const int StateProvince = 7;
+            public const int PostalCode = 8;
+            public const int Country = 9;
+            public const int County = 10;
+        }
+
+        public static class PortExcelColumns
+        {
+            public const int CountryCode = 0;
+            public const int PortNo = 1;
+            public const int PortName = 2;
+        }
+
+        public static class CountryExcelColumns
+        {
+            public const int CountryName = 0;
+            public const int CountryLongName = 1;
+            public const int CountryCode2Digits = 2;
+            public const int CountryCode3Digits = 3;
+            public const int CountryIDD = 4;
+            public const int Continent = 5;
+        }
+
+        public static class SystemKvsKeyword
+        {
+            public const string AllowedFileExt = "AllowedFileExt";
+            public const string ContainerDetentionDay = "ContainerDetentionDay";
+            public const string FileSizeLimit = "FileSizeLimit";
+        }
+    }
+}

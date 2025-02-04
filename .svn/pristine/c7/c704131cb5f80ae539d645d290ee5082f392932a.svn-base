@@ -1,0 +1,172 @@
+﻿using Microsoft.EntityFrameworkCore;
+using SERP.Application.Finance.Groups.Interfaces;
+using SERP.Domain.Common.Constants;
+using SERP.Domain.Finance.Groups;
+using SERP.Infrastructure.Common;
+using SERP.Infrastructure.Common.DBContexts;
+using System.Linq;
+using System.Linq.Expressions;
+
+namespace SERP.Infrastructure.Finance.Groups
+{
+    public class GroupRepository : GenericRepository<Group>, IGroupRepository
+    {
+        public GroupRepository(ApplicationDbContext dbContext) : base(dbContext) 
+        {
+            
+        }
+
+        public async Task<int?> GetParentId(int? id)
+        {
+            return await _dbContext.Group.Where(x => x.id == id)
+                                         .Select(x => x.parent_group_id)
+                                         .FirstOrDefaultAsync();
+        }
+
+        public async Task<Group> GetFirst(Expression<Func<Group, bool>> expression)
+        {
+            return await _dbContext.Group.Where(expression)
+                                         .FirstOrDefaultAsync();
+        }
+
+        public async Task<IEnumerable<int>> GetParentIdList(List<int> listId)
+        {
+            return await _dbContext.Group.Where(
+                    x => x.parent_group_id.HasValue && listId.Contains(x.parent_group_id.Value))
+                .Select(x => x.parent_group_id.Value)
+                .Distinct()
+                .ToListAsync();
+        }
+
+        public async Task<IEnumerable<Group>> GroupFilterPaged(DateTime? createDateFrom, DateTime? createDateTo, 
+                                                                List<int>? levelList, 
+                                                                List<int>? parentList, List<string>? statusList, 
+                                                                string keyword, string groupType)
+        {
+
+            var query = _dbContext.Group.AsQueryable();
+
+            query = query.Where(x => x.group_type == groupType);
+
+            if (!string.IsNullOrEmpty(keyword))
+            {
+                query = query.Where(x => (x.group_code.Contains(keyword) ||
+                                          x.group_description.Contains(keyword) ));
+            }
+
+            if (createDateFrom.HasValue)
+            {
+                query = query.Where(x => (x.created_on >= createDateFrom.Value));
+            }
+
+            if (createDateTo.HasValue)
+            {
+                query = query.Where(x => (x.created_on <= createDateTo));
+            }
+
+            //if (typeList is not null && typeList.Count > 0)
+            //{
+            //    query = query.Where(x => typeList.Contains(x.group_type) );
+            //}
+
+            if (levelList is not null && levelList.Count > 0)
+            {
+                query = query.Where(x => levelList.Contains(x.level) );
+            }
+
+            if (parentList is not null && parentList.Count > 0)
+            {
+                query = query.Where(x => x.parent_group_id.HasValue && 
+                    parentList.Contains(x.parent_group_id.Value) );
+            }
+
+            if (statusList is not null && statusList.Count > 0)
+            {
+                query = query.Where(x => statusList.Contains(x.status_flag));
+            }
+
+            return await query.OrderBy(x => x.group_code)
+                              .ThenBy(y => y.level)
+                              .ToListAsync();
+        }
+
+        public async Task<Dictionary<string, Group>> GetGroupDictionary(List<string> parentGroup)
+        {
+            return await _dbContext.Group.Where(x => parentGroup.Contains(x.group_code))
+                                         .ToDictionaryAsync(x => x.group_code, y => y );
+        }
+
+        public async Task<List<Group>> GetGroupByGroupType(string groupType)
+        {
+            return await _dbContext.Group.Where(x => x.group_type == groupType && x.status_flag == DomainConstant.StatusFlag.Enabled)
+                                         .OrderBy(x => x.group_description)
+                                         .ToListAsync();
+        }
+
+        public async Task<List<Group>> GetParentGroupList(string groupType)
+        {
+            return await _dbContext.Group.Where(x => x.group_type == groupType && 
+                                                    x.status_flag == DomainConstant.StatusFlag.Enabled && 
+                                                    x.level == DomainConstant.Group.GroupLevel.Parent)
+                                         .OrderBy(x => x.group_code)
+                                         .ToListAsync();
+        }
+
+        public async Task<List<Group>> GetGroupPage(string groupType)
+        {
+            return await _dbContext.Group.Where(x => x.group_type == groupType)
+                                         .OrderBy(x => x.group_code)
+                                         .ThenBy(y => y.level)
+                                         .ToListAsync();
+        }
+
+        public async Task<bool> GetGroup(int parentGroupId)
+        {
+            var group =  await _dbContext.Group.Where(x => x.id == parentGroupId && x.group_type == DomainConstant.Group.GroupType.Company && x.status_flag == DomainConstant.StatusFlag.Enabled)
+                                               .FirstOrDefaultAsync();
+
+            return group == null;
+
+        }
+
+        public async Task<IEnumerable<Group>> GetChild(int parentId, string groupType)
+        {
+            return await _dbContext.Group.Where(x => x.parent_group_id == parentId && x.group_type == groupType)
+                                         .OrderBy(x => x.group_description)
+                                         .ToListAsync();
+        }
+
+        public async Task<IEnumerable<Group>> GetLevelFourGroup(int maxLevel, string groupType)
+        {
+            var groups = await _dbContext.Group.Where(x => x.level == maxLevel && x.group_type == groupType)
+                                              .OrderBy(x => x.group_description)
+                                              .ThenBy(y => y.level)
+                                              .ToListAsync();
+            return groups;
+        }
+
+        public async Task<Dictionary<string, int>> GetIDByParentGroupNo(List<string?> parent_group_no, string group_type)
+        {
+            var groupIds = await _dbContext.Group.Where(x => parent_group_no.Contains(x.group_code) && x.group_type == group_type && x.status_flag == DomainConstant.StatusFlag.Enabled)
+                                                 .Select(x => new { x.group_code, x.id })
+                                                 .ToDictionaryAsync(x => x.group_code, x => x.id);
+
+            return groupIds;
+        }
+
+        public async Task<Dictionary<int?, int>> GetParentGroupId(List<int?> parent_group_no)
+        {
+            return await _dbContext.Group.Where(x => parent_group_no.Contains(x.id))
+                                         .Select(x => new { x.id, x.parent_group_id })
+                                         .ToDictionaryAsync(x => x.parent_group_id, x=> x.id);
+        }
+
+        public async Task<IEnumerable<int>> GetIdWithFlag(List<int> parentGroupId, string groupType, string flag)
+        {
+            return await _dbContext.Group.Where(x => parentGroupId.Contains(x.id) && x.group_type == groupType && x.status_flag == flag)
+                                            .Select(x => x.id)
+                                            .ToListAsync();
+        }
+
+    }
+}

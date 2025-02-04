@@ -1,0 +1,47 @@
+﻿using FluentValidation;
+using SERP.Application.Common.Constants;
+using SERP.Domain.Common.Constants;
+
+namespace SERP.Application.Finance.CostCenters.DTOs.Request
+{
+    public class UpdateCostCenterRequestModel
+    {
+        public int id { get; set; }
+        public string cost_center_code { get; set; }
+        public string cost_center_description { get; set; }
+        public int parent_group_id { get; set; }
+        public string status_flag { get; set; }
+
+        public List<CompanyListUpdate>? company_List { get; set; }
+    }
+
+    public class UpdateCostCenterRequestModelValidator : AbstractValidator<UpdateCostCenterRequestModel>
+    {
+        public UpdateCostCenterRequestModelValidator()
+        {
+            RuleFor(x => x.id > 0).NotEmpty().NotNull();
+            RuleFor(x => x.cost_center_code).NotEmpty().NotNull();
+            RuleFor(x => x.cost_center_description).NotEmpty().NotNull();
+            RuleFor(x => x.parent_group_id).NotEmpty().NotNull();
+            RuleFor(x => x.parent_group_id > 0).NotEmpty().NotNull();
+            RuleFor(x => x).Must(x => 
+                x.status_flag == DomainConstant.StatusFlag.Enabled ||
+                x.status_flag == DomainConstant.StatusFlag.Disabled)
+                .WithMessage(ErrorMessages.StatusFlagNotSupport);
+            RuleForEach(x => x.company_List)
+                .SetValidator(new UpdateCompanyListValidator());
+        }
+    }
+
+    public class UpdateCompanyListValidator : AbstractValidator<CompanyListUpdate>
+    {
+        public UpdateCompanyListValidator()
+        {
+            RuleFor(x => x.company_id).NotEmpty().NotNull();
+            RuleFor(x => x.action_flag).Must(flag => flag == DomainConstant.ActionFlag.Create || flag == DomainConstant.ActionFlag.Update || flag == DomainConstant.ActionFlag.Delete)
+                .When(x => !string.IsNullOrEmpty(x.action_flag))
+                .WithMessage("Invalid action flag value");
+        }
+    }
+
+}

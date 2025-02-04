@@ -1,0 +1,19 @@
+﻿using FluentValidation;
+using SERP.Application.Finance.Groups.Interfaces;
+using SERP.Application.Finance.Natural_Accounts.DTOs.Request;
+using SERP.Application.Masters.Lovs.Interfaces;
+
+namespace SERP.Application.Finance.Natural_Accounts.DTOs.Validator
+{
+    public class CreateNaturalAccountRequestModelValidator : AbstractValidator<CreateNaturalAccountRequestModel>
+    {
+        private readonly IGroupRepository _groupRepository;
+        private readonly ILovRepository _lovRepository;
+        public CreateNaturalAccountRequestModelValidator(IGroupRepository groupRepository, ILovRepository lovRepository)
+        {
+            _groupRepository = groupRepository;
+            _lovRepository = lovRepository;
+            Include(new INaturalAccountDtoValidator(_groupRepository, _lovRepository));
+        }
+    }
+}

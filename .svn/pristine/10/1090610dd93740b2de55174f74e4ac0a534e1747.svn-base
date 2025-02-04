@@ -1,0 +1,14 @@
+﻿using SERP.Application.Transactions.Receiving.Interfaces;
+using SERP.Domain.Transactions.Receiving;
+using SERP.Infrastructure.Common;
+using SERP.Infrastructure.Common.DBContexts;
+
+namespace SERP.Infrastructure.Transactions.Receiving
+{
+    internal class ReceivingASNRepository : GenericRepository<ReceivingASN>, IReceivingASNRepository
+    {
+        public ReceivingASNRepository(ApplicationDbContext dbContext) : base(dbContext)
+        {
+        }
+    }
+}

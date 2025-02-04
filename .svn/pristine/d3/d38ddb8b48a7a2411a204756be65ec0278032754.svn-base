@@ -1,0 +1,72 @@
+﻿namespace SERP.Application.Common.Constants
+{
+    public class ApplicationConstant
+    {
+        public const string createdByDefault = "SYSTEM";
+        public class StatusFlag
+        {
+            public const string Enabled = "E";
+            public const string Disabled = "D";
+        }
+
+        public class ApplicationName
+        {
+            public const string Code = "BoldsReport";
+            public const string Name = "SoleiERP";
+        }
+        public class Settings
+        {
+            public const long MaximumFileSize = 10485760;
+        }
+        public class HttpMediaType
+        {
+            public const string Excel = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+        }
+        public class ContainerUpdateAction
+        {
+            public const string In = "IN";
+            public const string UploadSt = "UNLOAD-ST";
+            public const string UploadCom = "UNLOAD-COM";
+            public const string Out = "OUT";
+        }
+        public class ContainerCreateStatusFlag
+        {
+            public const string Incoming = "0";
+            public const string Unverified = "9";
+        }
+        public class ReceivingUpdateAction
+        {
+            public const string AssignInspector = "AS-INSP";
+            public const string UnassignInspector = "UAS-INSP";
+            public const string InspectionStart = "INSP-ST";
+        }
+
+        public class FileName
+        {
+            public const string Company = "Company.xlsx";
+            public const string Group = "Group.xlsx";
+            public const string RevenueCenter = "Revenue Center.xlsx";
+            public const string CostCenter = "Cost Center.xlsx";
+            public const string NaturalAccount = "Natural Account.xlsx";
+        }
+        public class wwwRootFileName
+        {
+            public const string Company = "Company.xlsx";
+            public const string Group = "Company Group.xlsx";
+            public const string RevenueCenter = "Revenue Center.xlsx";
+            public const string CostCenter = "Cost Center.xlsx";
+            public const string NaturalAccount = "Natural Account.xlsx";
+        }
+        public class ActionFlag
+        {
+            public const string Create = "C";
+            public const string Delete = "D";
+        }
+ 
+        public enum LovType
+        {
+            NaturalAccountTypes
+        }
+    }
+
+}

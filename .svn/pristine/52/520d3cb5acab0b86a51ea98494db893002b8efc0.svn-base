@@ -1,0 +1,329 @@
+﻿using Microsoft.EntityFrameworkCore;
+using SERP.Application.Common;
+using SERP.Application.Transactions.Containers.Interfaces;
+using SERP.Domain.Common.Model;
+using SERP.Domain.Transactions.Containers;
+using SERP.Domain.Transactions.Containers.Model;
+using SERP.Infrastructure.Common;
+using SERP.Infrastructure.Common.DBContexts;
+using System.Linq.Expressions;
+using SERP.Domain.Common.Constants;
+
+namespace SERP.Infrastructure.Transactions.Containers
+{
+    internal class ContainerRepository : GenericRepository<Container>, IContainerRepository
+    {
+        public ContainerRepository(ApplicationDbContext dbContext) : base(dbContext)
+        {
+        }
+
+        public async Task<Dictionary<int, List<ContainerDetail>>> GetContainerByAsnHeaderIds(List<int> asnHeaderIds)
+        {
+            var dicContainers = from container in _dbContext.Containers
+                                join containerAsn in _dbContext.ContainerASNs on container.id equals containerAsn.container_id
+
+                                select new
+                                {
+                                    asnHeaderId = containerAsn.asn_header_id,
+                                    container_id = container.id,
+                                    container.status_flag,
+                                    container.container_no,
+                                    container.container_type,
+                                    container.weight,
+                                };
+
+            return await dicContainers.GroupBy(x => x.asnHeaderId, (asnHeaderId, enumerable) => new
+            {
+                asnHeaderId = asnHeaderId,
+                Containers = enumerable.Select(x => new ContainerDetail
+                {
+                    id = x.container_id,
+                    status_flag = x.status_flag,
+                    container_no = x.container_no,
+                    shipment_type = x.container_type,
+                    weight = x.weight
+                }).ToList()
+            }).ToDictionaryAsync(x => x.asnHeaderId, x => x.Containers);
+        }
+        public async Task<PagedResponseModel<ContainerDetailModel>> SearchContainerAsync(List<Expression<Func<ContainerDetailModel, bool>>> filters, PagingUtilities pageable, int skipRow, List<Sortable> sortBy)
+        {
+            var query = (from container in _dbContext.Containers
+                         join containerAsn in _dbContext.ContainerASNs on container.id equals containerAsn.container_id
+                         join asnHeader in _dbContext.AsnHeaders on containerAsn.asn_header_id equals asnHeader.id
+                         join lov in _dbContext.Lov
+                         on new { lov_type = DomainConstant.LOVs.Type.ReceivingBays, lov_value = container.bay_no } equals new { lov.lov_type, lov.lov_value } into lovGroup
+                         from lov in lovGroup.DefaultIfEmpty()
+                             //join isBlawb in _dbContext.InboundShipmentBLAWBs on container.inbound_shipment_blawb_id equals isBlawb.id
+                             //join iShipment in _dbContext.InboundShipments on isBlawb.inbound_shipment_id equals iShipment.id
+                         select new ContainerDetailModel
+                         {
+                             id = container.id,
+                             container_no = container.container_no,
+                             bay_no = lov.lov_label,
+                             detention_date = container.detention_date,
+                             no_of_packages = container.no_of_packages,
+                             no_of_packages_unloaded = container.no_of_packages_unloaded,
+                             status_flag = container.status_flag,
+                             shipment_type = container.shipment_type,
+                             container_type = container.container_type,
+                             weight = container.weight,
+                             unload_start_on = container.unload_start_on,
+                             unload_end_on = container.unload_end_on,
+                             unload_remark = container.unload_remark,
+                             received_on = container.received_on,
+                             received_by = container.received_by,
+                             released_on = container.released_on,
+                             released_by = container.released_by,
+                             created_by = container.created_by,
+                             created_on = container.created_on,
+                             last_modified_by = container.last_modified_by,
+                             last_modified_on = container.last_modified_on,
+                             branch_plant_id = asnHeader.branch_plant_id
+                         });
+
+            if (filters.Any())
+            {
+                foreach (var condition in filters)
+                {
+                    query = query.Where(condition);
+                }
+            }
+            query = query.Distinct();
+            int totalRows = await query.CountAsync();
+            if (totalRows == 0)
+            {
+                return new PagedResponseModel<ContainerDetailModel>();
+            }
+
+            var orderBy = ApplySort.GetOrderByFunction<ContainerDetailModel>(sortBy);
+
+            var totalPage = (int)Math.Ceiling(totalRows / (pageable.Size * 1.0));
+            //  IQueryable iQuery = from main in query select main;
+            var pagedResponse = await orderBy((IQueryable<ContainerDetailModel>)query).Skip(skipRow).Take(pageable.Size).ToListAsync();
+
+            return new PagedResponseModel<ContainerDetailModel>
+            {
+                Items = pagedResponse,
+                TotalItems = totalRows
+            };
+        }
+
+        public async Task<ContainerInfoModel?> GetContainerByIdAsync(int id)
+        {
+            var result = await (from container in _dbContext.Containers
+                                join containerAsn in _dbContext.ContainerASNs on container.id equals containerAsn.container_id
+                                //join isBlawb in _dbContext.InboundShipmentBLAWBs on container.inbound_shipment_blawb_id equals isBlawb.id
+                                //join iShipment in _dbContext.InboundShipments on isBlawb.inbound_shipment_id equals iShipment.id
+                                //join packingHeader in _dbContext.PackingHeaders on container.id equals packingHeader.container_id into packingHeaderGroup
+                                //from packingHeader in packingHeaderGroup.DefaultIfEmpty() // Left join
+                                //join rcvHeader in _dbContext.ReceivingHeaders
+                                //on container.receiving_header_id equals rcvHeader.id into rcvHeaderGroup
+                                //from rcvHeader in rcvHeaderGroup.DefaultIfEmpty()
+                                join lov in _dbContext.Lov
+                                on new { lov_type = DomainConstant.LOVs.Type.ReceivingBays, lov_value = container.bay_no } equals new { lov.lov_type, lov.lov_value } into lovGroup
+                                from lov in lovGroup.DefaultIfEmpty()
+                                where container.id == id
+                                select new ContainerInfoModel
+                                {
+                                    id = container.id,
+                                    container_no = container.container_no,
+                                    bay_no = container.bay_no,
+                                    detention_date = container.detention_date,
+                                    no_of_packages = container.no_of_packages,
+                                    no_of_packages_unloaded = container.no_of_packages_unloaded,
+                                    status_flag = container.status_flag,
+                                    shipment_type = container.shipment_type,
+                                    container_type = container.container_type,
+                                    weight = container.weight,
+                                    unload_start_on = container.unload_start_on,
+                                    unload_end_on = container.unload_end_on,
+                                    unloaded_by = container.unloaded_by,
+                                    unload_remark = container.unload_remark,
+                                    received_on = container.received_on,
+                                    received_by = container.received_by,
+                                    released_on = container.released_on,
+                                    released_by = container.released_by,
+                                    created_by = container.created_by,
+                                    created_on = container.created_on,
+                                    last_modified_by = container.last_modified_by,
+                                    last_modified_on = container.last_modified_on,
+                                    asns = (from asnHeader in _dbContext.AsnHeaders
+                                            join contAsn in _dbContext.ContainerASNs on asnHeader.id equals contAsn.asn_header_id
+                                            where contAsn.container_id == containerAsn.container_id
+                                            select new ContainerAsns
+                                            {
+                                                asn_header_id = asnHeader.id,
+                                                asn_no = asnHeader.asn_no,
+                                                notes_to_cargo_team = asnHeader.notes_to_cargo_team
+                                            }).ToArray(),
+                                    receivings = (from receiving in _dbContext.ReceivingHeaders
+                                                  join asnHeader in _dbContext.AsnHeaders on receiving.asn_header_id equals asnHeader.id
+                                                  join contAsn in _dbContext.ContainerASNs on asnHeader.id equals contAsn.asn_header_id
+                                                  where contAsn.container_id == containerAsn.container_id
+                                                  select new ContainerReceivings
+                                                  {
+                                                      receiving_header_id = receiving.id,
+                                                      receiving_no = receiving.receiving_no
+                                                  }).ToArray(),
+                                    packingLists = (from packingHeader in _dbContext.PackingHeaders
+                                                    where packingHeader.container_id == container.id
+                                                    select new ContainerPackingList
+                                                    {
+                                                        packing_header_id = packingHeader.id,
+                                                        asn_header_id = packingHeader.asn_header_id,
+                                                        packing_list_no = packingHeader.id.ToString()
+                                                    }).ToArray()
+                                    //asns = asnHeader == null
+                                    //    ? null
+                                    //    : new ContainerAsns
+                                    //    {
+                                    //        asn_no = asnHeader.asn_no,
+                                    //        notes_to_cargo_team = asnHeader.notes_to_cargo_team
+                                    //    },
+                                    //inbound_shipment = new ContainerInboundShipment
+                                    //{
+                                    //    inbound_shipment_no = iShipment.inbound_shipment_no,
+                                    //    notice_of_arrival_date = iShipment.notice_of_arrival_date
+                                    //},
+                                    //inbound_shipment_blawb = new ContainerInboundShipmentBlawb
+                                    //{
+                                    //    bl_awb_no = isBlawb.bl_awb_no,
+                                    //    //supplier_id = isBlawb.supplier_id,
+                                    //    //supplier_no = supplier.supplier_no,
+                                    //    //supplier_name = supplier.supplier_name,
+                                    //    bl_awb_total_package = isBlawb.bl_awb_total_packages,
+                                    //    bl_awb_total_gross_weight = isBlawb.bl_awb_total_gross_weight,
+                                    //    bl_awb_volumn = isBlawb.bl_awb_volume,
+                                    //    bl_awb_cargo_description = isBlawb.bl_awb_cargo_description
+                                    //}
+                                }).FirstOrDefaultAsync();
+
+            //await (from container in _dbContext.Containers
+            //                    join isBlawb in _dbContext.InboundShipmentBLAWBs on container.inbound_shipment_blawb_id equals isBlawb.id
+            //                    join iShipment in _dbContext.InboundShipments on isBlawb.inbound_shipment_id equals iShipment.id
+            //                    join asnHeader in _dbContext.AsnHeaders on isBlawb.asn_header_id equals asnHeader.id
+            //                    //join supplier in _dbContext.Supplier on isBlawb.supplier_id equals supplier.id
+            //                    where container.id == id
+            //                    select new ContainerInfoModel
+            //                    {
+            //                        id = container.id,
+            //                        container_no = container.container_no,
+            //                        bay_no = container.bay_no,
+            //                        detention_date = container.detention_date,
+            //                        no_of_packages = container.no_of_packages,
+            //                        no_of_packages_unloaded = container.no_of_packages_unloaded,
+            //                        status_flag = container.status_flag,
+            //                        shipment_type = container.shipment_type,
+            //                        weight = container.weight,
+            //                        unload_start_on = container.unload_start_on,
+            //                        unload_end_on = container.unload_end_on,
+            //                        unload_remark = container.unload_remark,
+            //                        received_on = container.received_on,
+            //                        received_by = container.received_by,
+            //                        released_on = container.released_on,
+            //                        released_by = container.released_by,
+            //                        created_by = container.created_by,
+            //                        created_on = container.created_on,
+            //                        last_modified_by = container.last_modified_by,
+            //                        last_modified_on = container.last_modified_on,
+            //                        asns = new ContainerAsns { asn_no = asnHeader.asn_no, notes_to_cargo_team = asnHeader.notes_to_cargo_team },
+            //                        inbound_shipment = new ContainerInboundShipment { inbound_shipment_no = iShipment.inbound_shipment_no, notice_of_arrival_date = iShipment.notice_of_arrival_date },
+            //                        inbound_shipment_blawb = new ContainerInboundShipmentBlawb
+            //                        {
+            //                            bl_awb_no = isBlawb.bl_awb_no,
+            //                            //supplier_id = isBlawb.supplier_id,
+            //                            //supplier_no = supplier.supplier_no,
+            //                            //supplier_name = supplier.supplier_name,
+            //                            bl_awb_total_package = isBlawb.bl_awb_total_packages,
+            //                            bl_awb_total_gross_weight = isBlawb.bl_awb_total_gross_weight,
+            //                            bl_awb_volumn = isBlawb.bl_awb_volume,
+            //                            bl_awb_cargo_description = isBlawb.bl_awb_cargo_description
+            //                        }
+            //                    }).FirstOrDefaultAsync();
+
+
+            return result;
+        }
+        public async Task<List<Container>> GetContainerListAsync(string bpNo, Expression<Func<Container, bool>> filters)
+        {
+            var containerByBranchPlant = from asnHeader in _dbContext.AsnHeaders
+                                         join branchPlant in _dbContext.BranchPlant on asnHeader.branch_plant_id equals branchPlant.id
+                                         join containerAsn in _dbContext.ContainerASNs on asnHeader.id equals containerAsn.asn_header_id
+                                         where branchPlant.branch_plant_no == bpNo
+                                         select containerAsn.container_id;
+
+
+            var query = from container in _dbContext.Containers
+                            //join isBlawb in _dbContext.InboundShipmentBLAWBs on container.inbound_shipment_blawb_id equals isBlawb.id
+                            //join asnHeader in _dbContext.AsnHeaders on container.asn_header_id equals asnHeader.id
+                            //join branchPlant in _dbContext.BranchPlant on asnHeader.branch_plant_id equals branchPlant.id
+                            //where branchPlant.branch_plant_no == bpNo
+                        where containerByBranchPlant.Contains(container.id)
+                        select new Container
+                        {
+                            id = container.id,
+                            container_no = container.container_no,
+                            status_flag = container.status_flag
+                        };
+            if (filters != null)
+                query = query.Where(filters);
+
+            query = query.OrderBy(x => x.container_no);
+            var result = await query.ToListAsync();
+            return result;
+        }
+
+        public async Task<Dictionary<string, int>> GetContainerIdByContainerNoAsync(HashSet<string> containerNOs)
+        {
+            var query = from container in _dbContext.Containers
+                        select new
+                        {
+                            container_no = container.container_no,
+                            container_id = container.id
+                        };
+
+            var result = await query.Where(x => containerNOs.Contains(x.container_no)).ToDictionaryAsync(x => x.container_no, x => x.container_id);
+            return result;
+        }
+
+        public async Task<List<string>> GetContainerNoCompletedAsync(List<string> containerNosInRequest)
+        {
+            return await _dbContext.Containers
+                .Where(x => containerNosInRequest.Contains(x.container_no) && x.status_flag == DomainConstant.Containers.StatusFlag.Completed)
+                .Select(x => x.container_no).ToListAsync();
+        }
+
+        public async Task<List<int>> GetExistingContainersWithAvailableByIdAsync(List<int> containerIdsInRequest)
+        {
+            return await _dbContext.Containers
+                            .Where(x => containerIdsInRequest.Contains(x.id) &&
+                                        (x.status_flag == DomainConstant.Containers.StatusFlag.Incoming ||
+                                         x.status_flag == DomainConstant.Containers.StatusFlag.Received))
+                            .Select(x => x.id).ToListAsync();
+        }
+
+        public async Task<List<ContainerListForAsnResponseDetail>> GetContainerListForAsnAsync(int asnHeaderId)
+        {
+            var query = from container in _dbContext.Containers
+                        join containerAsn in _dbContext.ContainerASNs on container.id equals containerAsn.container_id
+                        where containerAsn.asn_header_id == asnHeaderId
+                        select new ContainerListForAsnResponseDetail
+                        {
+                            container_id = container.id,
+                            container_no = container.container_no
+                        };
+
+            return await query.ToListAsync();
+        }
+
+        public async Task<List<Container>> GetContainerByIdsAsync(List<int> containerIds)
+        {
+            return await _dbContext.Containers.Where(x => containerIds.Contains(x.id)).ToListAsync();
+        }
+
+        public async Task<List<Container>> GetContainerByConditionAsync(Expression<Func<Container, bool>> predicated)
+        {
+            return await _dbContext.Containers.Where(predicated).ToListAsync();
+        }
+    }
+}

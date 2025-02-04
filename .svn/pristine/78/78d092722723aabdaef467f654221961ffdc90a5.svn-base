@@ -1,0 +1,99 @@
+﻿using AutoMapper;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using SERP.Api.Common;
+using SERP.Application.Masters.Lovs.DTOs.Request;
+using SERP.Application.Masters.Lovs.Services;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+
+namespace SERP.Api.Controllers
+{
+    [Route("[controller]")]
+    [ApiController]
+    public class LovController : ControllerBase
+    {
+        private readonly ILovService _lovService;
+        private HttpContextService _httpContextService;
+        private IMapper _mapper;
+
+        public LovController(ILovService lovService, IMapper mapper)
+        {
+            _lovService = lovService;
+            _mapper = mapper;
+            _httpContextService = new HttpContextService();
+        }
+
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [HttpPost("[action]/{onlyEnabled:bool}")]
+        public async Task<IActionResult> GetByLovType(List<GetByLovTypeRequestDto> lovTypes, bool onlyEnabled)
+        {
+            var items = await _lovService.GetByLovType(lovTypes, onlyEnabled);
+            return StatusCode(StatusCodes.Status200OK, items);
+        }
+
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [HttpPost("[action]")]
+        public async Task<object> SearchPaged([FromQuery] SearchLovPagedRequestModel model,
+                                                    [FromBody] LOVFilterRequestModel filter)
+        {
+            PagedFilterLovRequestDto request = new PagedFilterLovRequestDto()
+            {
+                Page = model.Page,
+                PageSize = model.PageSize,
+                Keyword = model.Keyword,
+                SortBy = model.SortBy,
+                SortAscending = model.SortAscending,
+                lovTypeList = filter.lovTypeList != null ? filter.lovTypeList.Select(x => x.lov_type).ToList() : null,
+                statusList = filter.statusList != null ? filter.statusList.Select(x => x.status).ToList() : null,
+                create_date_from = filter.create_date_from,
+                create_date_to = filter.create_date_to,
+                default_flag = filter.default_flag,
+            };
+
+            return await _lovService.PagedFilterLovAsync(request);
+        }
+
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [HttpPost("[action]")]
+        public async Task<IActionResult> Create([FromBody] List<CreateLovRequestDto> model)
+        {
+            await _lovService.CreateLovAsync(_httpContextService.GetCurrentUserId(), model);
+            return Ok();
+        }
+
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [HttpPut("[action]")]
+        public async Task<IActionResult> Update([FromBody] List<UpdateLovRequestDto> model)
+        {
+            await _lovService.UpdateLovAsync(_httpContextService.GetCurrentUserId(), model);
+            return Ok();
+        }
+
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [HttpPost("[action]")]
+        public async Task<IActionResult> Delete([FromBody] List<DeleteLovList> request)
+        {
+            await _lovService.DeleteLovAsync(request);
+            return Ok();
+        }
+
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [HttpGet("[action]")]
+        public async Task<IActionResult> GetAll()
+        {
+            var lovs = await _lovService.GetAllLoveAsync();
+            return Ok(lovs);
+        }
+
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [HttpPost("[action]")]
+        public async Task<IActionResult> GetAllLovType()
+        {
+            var lovTypes = await _lovService.GetAllLovTypeAsync();
+            return Ok(lovTypes);
+        }
+
+    }
+}

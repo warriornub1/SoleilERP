@@ -1,0 +1,39 @@
+﻿using SERP.Application.Common;
+using SERP.Application.Common.Dto;
+using SERP.Application.Transactions.AdvancedShipmentNotices.DTOs.Base;
+using SERP.Application.Transactions.AdvancedShipmentNotices.DTOs.Request;
+using SERP.Application.Transactions.AdvancedShipmentNotices.DTOs.Response;
+using SERP.Application.Transactions.Invoices.DTOs.Request;
+using SERP.Domain.Common.Model;
+
+namespace SERP.Application.Transactions.AdvancedShipmentNotices.Services
+{
+    public interface IAdvancedShipmentNoticeService
+    {
+        Task<int[]> CreateAsnAsync(string userId, CreateASNRequestDto request);
+        Task UpdateAsnAsync(string userId, UpdateASNRequestDto request);
+        Task<AsnDetailResponseDto?> GetByIdAsync(int id);
+        Task<AsnDetailResponseDto?> GetByAsnNoAsync(string asnNo);
+        Task<int[]> UploadFileAsync(string userId, UploadAsnFileRequestDto request);
+        Task<List<string>> RemoveFileAsync(int poHeaderId, List<int> poFileIDs);
+        PagedResponse<PagedAsnResponseDto> PagedFilterAsnAsync(SearchPagedRequestDto request, AsnFilterRequestDto filter);
+        PagedResponse<PageAsnDetailResponseDto> SearchDetailAsync(SearchPagedRequestDto request, FilterAsnDetailRequestDto filter);
+        Task DeleteAsnAsync(string userId, int asnHeaderId);
+        Task UpdateAsnHeaderStatusToNewByAsnDetailStatus(string userId, IUnitOfWork unitOfWork, int asnHeaderId);
+        //Task AddInvoiceAsync(string userId, CreateInvoiceRequestDto request);
+        //Task UpdateInvoiceAsync(string userId, UpdateInvoiceRequestDto request);
+        //Task DeleteInvoiceAsync(string userId, int invoiceHeaderId);
+        //Task DeleteInvoiceLineAsync(string userId, List<int> invoiceDetailId);
+        Task AddInvoiceForAsnAsync(string userId, int asnHeaderId, InvoiceForAsnRequestDto request);
+        Task DeleteInvoiceForAsnAsync(string userId, int asnHeaderId, InvoiceForAsnRequestDto request);
+        Task<PagedResponse<ResponsePackingInformationResponseDto>> SearchPackingInformationPaged(SearchPagedRequestDto request, FilterPackingInformationRequestDto filter);
+        Task<List<ContainerListForAsnResponseDto>> GetContainerListForAsnAsync(int asnHeaderId);
+        Task<object> AddContainerForAsnAsync(string userId, int asnHeaderId, CreateContainerForAsnRequestDto request);
+        Task UpdateContainerForAsnAsync(string userId, int asnHeaderId, UpdateContainerForAsnRequestDto request);
+        Task DeleteContainerForAsnAsync(int containerId);
+        //Task AddPackingForAsnAsync(string userId, int asnHeaderId, AddPackingForAsnRequestDto request);
+        Task UpdatePackingForAsnAsync(string userId, int asnHeaderId, UpdatePackingForAsnRequestDto request);
+        PagedResponse<PackingDiscrepancyListResponseDto> GetPackingDiscrepancyList(SearchPackingInfoRequestDto request);
+        Task UpdateShippingAsync(string userId, UpdateShippingInformationRequestDto request);
+    }
+}

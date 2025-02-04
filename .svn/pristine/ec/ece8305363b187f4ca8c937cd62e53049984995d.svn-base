@@ -1,0 +1,33 @@
+using SERP.Domain.Common.Attributes;
+using SERP.Domain.Common.Constants;
+
+namespace SERP.Application.Transactions.AdvancedShipmentNotices.DTOs.Request
+{
+    public class CreateASNRequestDto
+    {
+        [AcceptValue(DomainConstant.Action.Submit,
+            DomainConstant.Action.Draft)]
+        public string action { get; set; }
+        public List<CreateASNInfoRequestDto> asns { get; set; }
+    }
+
+    public class CreateASNInfoRequestDto
+    {
+        public CreateASNHeaderRequestDto asn_header { get; set; }
+        public List<CreateASNDetailRequestDto>? asn_details { get; set; }
+        //public List<CreateInvoiceRequest>? invoices { get; set; }
+        //public CreateShipmentInfoRequestDto? shipment_info { get; set; }
+        public List<CreateContainerForAsnRequestDto>? containers { get; set; }
+
+        public List<int>? asn_invoice_id { get; set; }
+        //public List<ContainerPackingListMappingRequestDto>? packing_lists { get; set; }
+    }
+
+    public class ContainerPackingListMappingRequestDto
+    {
+        public string container_no { get; set; }
+        public List<PackingInformationRequestDto> packing_lists { get; set; }
+    }
+
+  
+}

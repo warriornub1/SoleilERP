@@ -1,0 +1,25 @@
+﻿using SERP.Application.Transactions.InboundShipments.DTOs.Request;
+using SERP.Application.Transactions.InboundShipments.DTOs.Response;
+using SERP.Domain.Common.Model;
+
+namespace SERP.Application.Transactions.InboundShipments.Services
+{
+    public interface IInboundShipmentService
+    {
+        Task<int[]> CreateInboundShipmentAsync(string userId, List<CreateInboundShipmentRequestDto> request);
+        Task UpdateInboundShipmentAsync(string userId, List<UpdateInboundShipmentRequestDto> request);
+        Task UpdateInboundShipmentBlAwbAsync(string userId, int inboundShipmentId, List<UpdateInboundShipmentBLAWBRequestDto> request);
+        Task<int[]> CreateInboundShipmentBlAwbAsync(string userId, int inboundShipmentId, List<InboundShipmentBLAWBRequestDto> request);
+        Task<InboundShipmentDetailResponseDto> GetByIdAsync(int id);
+        Task<InboundShipmentDetailResponseDto> GetByInboundShipmentNoAsync(string inboundShipmentNo);
+        Task<int[]> UploadFileAsync(string userId, UploadIhsRequestDto request);
+        Task<List<string>> RemoveFileAsync(int ihsId, List<int> ihsFileIDs);
+        Task AddAsnAsync(string userId, MappingAsnRequestDto request);
+        Task DeleteAsnAsync(string userId, MappingAsnRequestDto request);
+        PagedResponse<PagedIsrResponseDto> ISRPagedFilterAsync(PagedFilterIsRequestDto request);
+        PagedResponse<PagedIshResponseDto> ISHPagedFilterAsync(PagedFilterIsRequestDto request);
+        Task DeleteBlAwbLineAsync(List<int> blAwbIDs);
+        Task<object> GetInboundShipmentRequestGroupListAsync(string statusFlag);
+        Task DeleteInboundShipmentAsync(string userId, int inboundShipmentId);
+    }
+}

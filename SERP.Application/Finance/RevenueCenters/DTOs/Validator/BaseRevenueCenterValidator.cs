@@ -1,0 +1,28 @@
+﻿using FluentValidation;
+using SERP.Application.Common.Constants;
+using SERP.Application.Finance.RevenueCenters.DTOs.Request;
+using SERP.Domain.Common.Constants;
+
+namespace SERP.Application.Finance.RevenueCenters.DTOs.Validator
+{
+    public class BaseRevenueCenterValidator : AbstractValidator<RevenueCenterBaseDto>
+    {
+        public BaseRevenueCenterValidator()
+        {
+            RuleFor(x => x.revenue_center_code).NotEmpty().NotNull();
+            RuleFor(x => x).Must(x => x.revenue_center_code.Length <= DomainDBLength.RevenueCenter.RevenueCenterCode);
+
+            RuleFor(x => x.revenue_center_description).NotEmpty().NotNull();
+            RuleFor(x => x).Must(x => x.revenue_center_description.Length <= DomainDBLength.RevenueCenter.RevenueCenterDescription);
+
+            RuleFor(x => x.parent_group_id).NotEmpty().NotNull();
+            RuleFor(x => x).Must(x => x.parent_group_id > 0);
+
+            RuleFor(x => x).Must(x =>
+
+                x.status_flag == DomainConstant.StatusFlag.Enabled ||
+                x.status_flag == DomainConstant.StatusFlag.Disabled)
+                    .WithMessage(ErrorMessages.StatusFlagNotSupport);
+        }
+    }
+}

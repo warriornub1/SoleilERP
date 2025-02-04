@@ -1,0 +1,143 @@
+﻿using Microsoft.AspNetCore.Mvc;
+using SERP.Api.Common;
+using SERP.Application.Common.Constants;
+using SERP.Application.Finance.CostCenters.DTOs.Request;
+using SERP.Application.Finance.CostCenters.Services;
+using SERP.Application.Finance.RevenueCenters.DTOs.Request;
+using static SERP.Application.Common.Constants.ApplicationConstant;
+
+namespace SERP.Api.Controllers
+{
+    [Route("[controller]/[action]")]
+    [ApiController]
+    public class CostCenterController : ControllerBase
+    {
+        private readonly ICostCenterService _costCenterService;
+        private readonly HttpContextService _httpContextService;
+        private readonly IWebHostEnvironment _webHostEnvironment;
+
+        public CostCenterController(HttpContextService httpContextService, ICostCenterService costCenterService, IWebHostEnvironment webHostEnvironment)
+        {
+            _costCenterService = costCenterService;
+            _httpContextService = httpContextService;
+            _webHostEnvironment = webHostEnvironment;
+
+        }
+
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [HttpGet("{page:int}/{pageSize:int}")]
+        public async Task<IActionResult> GetAllPaged(int page, int pageSize)
+        {
+            var costCenter = await _costCenterService.GetAllPagedAsync(page, pageSize);
+            return Ok(costCenter);
+        }
+
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [HttpPost]
+        public async Task<IActionResult> SearchPaged(int page, int pageSize, string? keyword, [FromBody] SearchCostCenterRequestModel filter)
+        {
+            var costCenters = await _costCenterService.SearchPagedAsync(page, pageSize, keyword, filter);
+            return Ok(costCenters);
+        }
+
+
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [HttpGet("{id:int}")]
+        public async Task<IActionResult> GetById(int id)
+        {
+            var result = await _costCenterService.GetByIdAsync(id);
+            return Ok(result);
+        }
+
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [HttpGet]
+        public async Task<IActionResult> GetCostCenterTreeView()
+        {
+            var result = await _costCenterService.GetCostCenterTreeViewAsync();
+            return Ok(result);
+        }
+
+
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [HttpPut]
+        public async Task<IActionResult> CreateCostCenter(CreateCostCenterRequestModel request)
+        {
+            await _costCenterService.CreateCostCenterAsync(request, _httpContextService.GetCurrentUserId());
+            return Ok();
+        }
+
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [HttpPost]
+        public async Task<IActionResult> DeleteCostCenter(DeleteCostCenterRequestDto request)
+        {
+            await _costCenterService.DeleteCostCenterAsync(request);
+            return Ok();
+        }
+
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [HttpGet]
+        public async Task<IActionResult> GetCostCenterTemplate()
+        {
+            var file = await _costCenterService.GetCostCenterTemplate(_webHostEnvironment.WebRootPath);
+            Response.Headers.Add("Content-Disposition", "Content-Disposition");
+            return new FileStreamResult(new MemoryStream(file), HttpMediaType.Excel)
+            {
+                FileDownloadName = ApplicationConstant.FileName.CostCenter
+            };
+        }
+
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [HttpPost]
+        public async Task<IActionResult> ImportCostCenter([FromForm] ImportRevenueCenterRequestModel request)
+        {
+            await _costCenterService.ImportCostCenterAsync(_httpContextService.GetCurrentUserId(), request);
+            return Ok();
+        }
+
+
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [HttpPut]
+        public async Task<IActionResult> UpdateCostCenter(List<UpdateCostCenterRequestModel> requests)
+        {
+            await _costCenterService.UpdateCostCenterAsync(requests, _httpContextService.GetCurrentUserId());
+            return Ok();
+        }
+
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [HttpGet]
+        public async Task<IActionResult> GetCompanyStructureCostCenter()
+        {
+            var result = await _costCenterService.GetCompanyStructureCostCenter();
+            return Ok(result);
+        }
+
+
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [HttpPut]
+        public async Task<IActionResult> UpdateCostCenterCompanyStructure(List<UpdateCostCenterCompanyStructureModel> requests)
+        {
+            await _costCenterService.UpdateCostCenterCompanyStructureAsync(requests);
+            return Ok();
+        }
+
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [HttpGet]
+        public async Task<IActionResult> GetAllLimited(bool onlyEnabled)
+        {
+            var costCenters = await _costCenterService.GetAllLimitedAsync(onlyEnabled);
+            return Ok(costCenters);
+        }
+    }
+}

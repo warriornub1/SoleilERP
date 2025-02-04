@@ -1,0 +1,542 @@
+﻿using AutoMapper;
+using SERP.Application.Common.Dto;
+using SERP.Application.Finance.CostCenters.DTOs.Response;
+using SERP.Application.Finance.Groups.DTOs.Response;
+using SERP.Application.Finance.Natural_Accounts.DTOs.Response;
+using SERP.Application.Finance.RevenueCenters.DTOs.Response;
+using SERP.Application.Masters.Agents.DTOs;
+using SERP.Application.Masters.Agents.DTOs.Request;
+using SERP.Application.Masters.Agents.DTOs.Response;
+using SERP.Application.Masters.BranchPlants.DTOs;
+using SERP.Application.Masters.BranchPlants.DTOs.Request;
+using SERP.Application.Masters.BranchPlants.DTOs.Response;
+using SERP.Application.Masters.Companies.DTOs.Request;
+using SERP.Application.Masters.Companies.DTOs.Response;
+using SERP.Application.Masters.Countries.DTOs.Response;
+using SERP.Application.Masters.Currencies.DTOs;
+using SERP.Application.Masters.Customers.DTOs;
+using SERP.Application.Masters.Items.DTOs;
+using SERP.Application.Masters.Items.DTOs.Response;
+using SERP.Application.Masters.Lovs.DTOs;
+using SERP.Application.Masters.Lovs.DTOs.Request;
+using SERP.Application.Masters.Lovs.DTOs.Response;
+using SERP.Application.Masters.Ports.DTOs.Response;
+using SERP.Application.Masters.Sites.DTOs.Request;
+using SERP.Application.Masters.Sites.DTOs.Response;
+using SERP.Application.Masters.Suppliers.DTOs;
+using SERP.Application.Masters.Suppliers.DTOs.Request;
+using SERP.Application.Masters.Suppliers.DTOs.Response;
+using SERP.Application.Transactions.AdvancedShipmentNotices.DTOs.Base;
+using SERP.Application.Transactions.AdvancedShipmentNotices.DTOs.Request;
+using SERP.Application.Transactions.AdvancedShipmentNotices.DTOs.Response;
+using SERP.Application.Transactions.Containers.DTOs.Request;
+using SERP.Application.Transactions.Containers.DTOs.Response;
+using SERP.Application.Transactions.CustomViews.DTOs.Request;
+using SERP.Application.Transactions.CustomViews.DTOs.Response;
+using SERP.Application.Transactions.FilesTracking.DTOs;
+using SERP.Application.Transactions.InboundShipments.DTOs.Request;
+using SERP.Application.Transactions.InboundShipments.DTOs.Response;
+using SERP.Application.Transactions.Invoices.DTOs.Request;
+using SERP.Application.Transactions.Invoices.DTOs.Request.Base;
+using SERP.Application.Transactions.Invoices.DTOs.Response;
+using SERP.Application.Transactions.PurchaseOrders.DTOs.Request;
+using SERP.Application.Transactions.PurchaseOrders.DTOs.Response;
+using SERP.Application.Transactions.Receiving.DTOs.Response;
+using SERP.Domain.Common.Model;
+using SERP.Domain.Finance.CostCenters;
+using SERP.Domain.Finance.CostCenters.Model;
+using SERP.Domain.Finance.Groups;
+using SERP.Domain.Finance.NaturalAccounts;
+using SERP.Domain.Finance.NaturalAccounts.Model;
+using SERP.Domain.Finance.RevenueCenters;
+using SERP.Domain.Finance.RevenueCenters.Model;
+using SERP.Domain.Masters.Agents;
+using SERP.Domain.Masters.Agents.Model;
+using SERP.Domain.Masters.BranchPlants;
+using SERP.Domain.Masters.BranchPlants.Models;
+using SERP.Domain.Masters.Companies;
+using SERP.Domain.Masters.Companies.Models;
+using SERP.Domain.Masters.Countries;
+using SERP.Domain.Masters.Countries.Models;
+using SERP.Domain.Masters.Currencies.Model;
+using SERP.Domain.Masters.Customers;
+using SERP.Domain.Masters.Customers.Models;
+using SERP.Domain.Masters.Items;
+using SERP.Domain.Masters.Items.Model;
+using SERP.Domain.Masters.LOVs;
+using SERP.Domain.Masters.Ports;
+using SERP.Domain.Masters.Ports.Model;
+using SERP.Domain.Masters.Sites;
+using SERP.Domain.Masters.Sites.Model;
+using SERP.Domain.Masters.Suppliers;
+using SERP.Domain.Masters.Suppliers.Models;
+using SERP.Domain.Transactions.AdvancedShipmentNotices;
+using SERP.Domain.Transactions.AdvancedShipmentNotices.Model;
+using SERP.Domain.Transactions.AdvancedShipmentNotices.Model.Base;
+using SERP.Domain.Transactions.Containers;
+using SERP.Domain.Transactions.Containers.Model;
+using SERP.Domain.Transactions.Containers.Model.Base;
+using SERP.Domain.Transactions.CustomViews;
+using SERP.Domain.Transactions.CustomViews.Model;
+using SERP.Domain.Transactions.InboundShipments;
+using SERP.Domain.Transactions.InboundShipments.Model;
+using SERP.Domain.Transactions.Invoice;
+using SERP.Domain.Transactions.Invoice.Model;
+using SERP.Domain.Transactions.PackingLists;
+using SERP.Domain.Transactions.PackingLists.Model;
+using SERP.Domain.Transactions.PurchaseOrders;
+using SERP.Domain.Transactions.PurchaseOrders.Model;
+using SERP.Domain.Transactions.PurchaseOrders.Model.Base;
+using SERP.Domain.Transactions.Receiving.Model;
+
+namespace SERP.Application.Common
+{
+    public class MappingProfile : Profile
+    {
+        public MappingProfile()
+        {
+            #region Supplier
+            CreateMap<Supplier, SupplierDto>().ReverseMap();
+            CreateMap<Supplier, SupplierLimitedDto>().ReverseMap();
+            CreateMap<Supplier, CreateSupplierDto>().ReverseMap();
+            CreateMap<Supplier, UpdateSupplierDto>().ReverseMap();
+            CreateMap<SupplierDetail, SupplierDto>().ReverseMap();
+            CreateMap<IntermediarySupplierDetail, IntermediarySupplierDetailDto>().ReverseMap();
+            CreateMap<SecondarySupplier, SecondarySupplierDto>().ReverseMap();
+            CreateMap<SecondarySupplier, SecondarySupplierLimitedDto>().ReverseMap();
+            CreateMap<SupplierItemMapping, SupplierItemMappingDto>().ReverseMap();
+            CreateMap<SecondarySupplierDetail, SecondarySupplierDetailDto>().ReverseMap();
+            CreateMap<SelfCollectSiteDetail, SelfCollectSiteDetailDto>().ReverseMap();
+            CreateMap<RegisteredSiteDetail, RegisteredSiteDetailDto>().ReverseMap();
+            CreateMap<ImportSupplierData, Supplier>()
+                .ForMember(dest => dest.landed_cost_rule,
+                    opt => opt.MapFrom(src => src.cost_rule));
+            CreateMap<ImportSupplierItemData, SupplierItemMapping>();
+            CreateMap<ImportSupplierSecondaryData, SecondarySupplier>();
+            CreateMap<PagedSupplierDetail, SupplierPagedResponseDto>();
+            CreateMap<SupplierItemMappingPagedResponseDetail, SupplierItemMappingPagedResponseDto>();
+            CreateMap<SupplierSecondaryPagedResponseDetail, SecondarySupplierPagedResponseDto>();
+            CreateMap<IntermediarySupplierPagedResponseDetail, IntermediarySupplierPagedResponseDto>();
+            CreateMap<SupplierSelfCollectSitePagedResponseDetail, SupplierSelfCollectSitePagedResponseDto>();
+            #endregion
+
+            #region Country
+            CreateMap<CountryDetail, CountryDetailDto>().ReverseMap();
+            CreateMap<CountryDetail, CountryResponseDto>()
+                .ForMember(dest => dest.id, opt => opt.MapFrom(src => src.country_id));
+            CreateMap<ImportCountryData, Country>();
+            CreateMap<CountryBasicDetail, CountryBasicResponseDto>();
+            #endregion
+
+            #region Item
+            CreateMap<Item, ItemDto>().ReverseMap();
+            CreateMap<Item, ItemLimitedDto>().ReverseMap();
+            CreateMap<ImportItemData, Item>();
+            CreateMap<ItemResponseDetail, ItemResponseDto>();
+            CreateMap<ItemDetail, ItemDto>();
+            CreateMap<ItemConversionDetail, ItemConversion>();
+            CreateMap<ItemMappingDetail, ItemMappingDetailDto>();
+            #endregion
+
+            #region LOV
+            CreateMap<Lov, LovDto>().ReverseMap();
+            CreateMap<Lov, PagedLovValuesResponse>();
+            #endregion
+
+            #region BranchPlant
+            CreateMap<PagedBranchPlantDetail, PagedBranchPlantResponseDto>();
+            CreateMap<BranchPlantDetail, BranchPlantGetByBUDto>().ReverseMap();
+            CreateMap<BranchPlantDetailSite, SiteGetByBUDto>().ReverseMap();
+            CreateMap<BranchPlantDetail, BranchPlantGetByIdDto>().ReverseMap();
+            CreateMap<BranchPlantDetailSite, SiteGetByIdDto>().ReverseMap();
+            CreateMap<CreateBranchPlantRequestModel, CreateBranchPlantRequestDto>();
+            CreateMap<UpdateBranchPlantRequestModel, UpdateBranchPlantRequestDto>();
+            CreateMap<CreateBranchPlantRequestDto, ValidateBranchPlantRequest>();
+            CreateMap<UpdateBranchPlantRequestDto, ValidateBranchPlantRequest>();
+            CreateMap<CreateBranchPlantRequestDto, BranchPlant>();
+            CreateMap<UpdateBranchPlantRequestDto, BranchPlant>()
+                .ForMember(dest => dest.branch_plant_no, opt => opt.Ignore());
+            #endregion
+
+            #region Customer
+            CreateMap<Customer, CustomerLimitedDto>().ReverseMap();
+            CreateMap<CustomerShipToDetail, CustomerShipToDetailDto>().ReverseMap();
+            CreateMap<CustomerShipToDetailSite, CustomerShipToDetailSiteDto>().ReverseMap();
+            #endregion
+
+            #region Agent
+            CreateMap<Agent, AgentDto>().ReverseMap();
+            CreateMap<CreateAgentRequestDto, Agent>();
+            CreateMap<UpdateAgentRequestDto, Agent>();
+            CreateMap<PagedAgentDetail, PagedAgentResponseDto>();
+            #endregion
+
+            #region Currency
+            CreateMap<CurrencyDetail, CurrencyDto>();
+            CreateMap<CurrencyExchangeDetail, CurrencyExchangeDto>();
+            #endregion
+
+            #region Custom View
+            CreateMap<CustomViewDetail, CustomViewResponseDto>();
+            CreateMap<CreateCustomViewRequestDto, CustomView>();
+            CreateMap<UpdateCustomViewAttributeRequestDto, CustomView>();
+            CreateMap<AttributeDetail, AttributeResponseDto>();
+            CreateMap<CustomViewFilterDetail, CustomViewFilterResponseDto>();
+            //.ForMember(
+            //    dest => dest.column_freeze_flag,
+            //        opt => opt.MapFrom(src => Utilities.MapBoolToStatus(src.column_freeze_flag, false)));
+            CreateMap<CustomViewAttributeDetail, CustomViewAttributeResponseDto>();
+            CreateMap<CreateCustomViewRequestModel, CreateCustomViewRequestDto>();
+            CreateMap<CreateAttributeViewModel, CreateCustomViewAttributeRequestDto>();
+            CreateMap<UpdateCustomViewRequestModel, UpdateCustomViewAttributeRequestDto>();
+            CreateMap<UpdateAttributeViewModel, UpdateAttributeRequestDto>();
+            CreateMap<CreateCustomViewAttributeRequestDto, CustomViewAttribute>();
+            CreateMap<CreateCustomViewFilterModel, CustomViewFilterRequestDto>();
+            CreateMap<UpdateCustomViewFilterModel, CustomViewFilterRequestDto>();
+            CreateMap<CustomViewFilterRequestDto, CustomViewFilter>()
+                .ForMember(dest => dest.id, opt => opt.MapFrom(src => src.custom_view_filter_id));
+
+            //.ForMember(dest => dest.full_flag,
+            //    opt => opt.MapFrom(src => Utilities.MapBoolToStatus(src.full_flag, false)))
+            //.ForMember(dest => dest.private_flag,
+            //    opt => opt.MapFrom(src => Utilities.MapBoolToStatus(src.private_flag, false)))
+            //.ForMember(dest => dest.default_flag,
+            //    opt => opt.MapFrom(src => Utilities.MapBoolToStatus(src.default_flag, false)));
+
+            //.ForMember(dest => dest.full_flag,
+            //    opt => opt.MapFrom(src => Utilities.MapBoolToStatus(src.full_flag, false)))
+            //.ForMember(dest => dest.private_flag,
+            //    opt => opt.MapFrom(src => Utilities.MapBoolToStatus(src.private_flag, false)))
+            //.ForMember(dest => dest.default_flag,
+            //    opt => opt.MapFrom(src => Utilities.MapBoolToStatus(src.default_flag, false)));
+            CreateMap<UpdateAttributeViewModel, UpdateAttributeRequestDto>();
+            //.ForMember(dest => dest.column_freeze_flag,
+            //                opt => opt.MapFrom(src => Utilities.MapBoolToStatus(src.column_freeze_flag, false)));
+            CreateMap<UpdateAttributeRequestDto, CustomViewAttribute>()
+                .ForMember(dest => dest.id, opt => opt.MapFrom(src => src.custom_view_attribute_id));
+
+            CreateMap<UpdateCustomViewRequestDto, CustomView>();
+            CreateMap<PageCustomViewResponseDetail, CustomViewPagedResponseDto>();
+            #endregion
+
+            #region PO
+            CreateMap<POHeader, PoHeaderResponse>();
+            CreateMap<PODetail, PoDetailResponse>()
+                .ForMember(dest => dest.detail_id,
+                        opt => opt.MapFrom(src => src.id));
+
+            CreateMap<CreatePORequestModel, CreatePoRequestDto>();
+            CreateMap<CreatePoInfoRequestModel, CreatePoInfoRequestDto>();
+            CreateMap<CreatePOHeaderViewModel, CreatePoHeaderRequestDto>();
+            CreateMap<CreatePODetailViewModel, CreatePoDetailRequestDto>();
+            CreateMap<UpdatePORequestModel, UpdatePoRequestDto>();
+            CreateMap<UpdatePoInfoRequestModel, UpdatePoInfoRequestDto>();
+            CreateMap<UpdatePOHeaderViewModel, UpdatePoHeaderRequestDto>();
+            CreateMap<UpdatePODetailViewModel, UpdatePoDetailRequestDto>();
+
+            CreateMap<SearchPagedPORequestModel, PagedFilterPoRequestDto>();
+            CreateMap<SearchPagedRequestDto, PagedFilterPoRequestDto>();
+            CreateMap<SearchPagedRequestModel, PagedFilterPoRequestDto>();
+            CreateMap<SearchPoDetailRequestModel, PagedFilterPoRequestDto>();
+            CreateMap<POFilterRequestModel, PagedFilterPoRequestDto>();
+            CreateMap<PagedPORequestModel, PagedFilterPoRequestDto>();
+            CreateMap<SearchLovPagedRequestModel, PagedFilterLovRequestDto>();
+            CreateMap<LOVFilterRequestModel, PagedFilterLovRequestDto>()
+            .ForMember(dest => dest.lovTypeList, opt => opt.MapFrom(src => src.lovTypeList != null
+                ? src.lovTypeList.Select(lov => lov.lov_type).ToList()
+                : null))
+            .ForMember(dest => dest.statusList, opt => opt.MapFrom(src => src.statusList != null
+                ? src.statusList.Select(status => status.status).ToList()
+                : null))
+            .ForMember(dest => dest.create_date_from, opt => opt.MapFrom(src => src.create_date_from))
+            .ForMember(dest => dest.create_date_to, opt => opt.MapFrom(src => src.create_date_to))
+            .ForMember(dest => dest.default_flag, opt => opt.MapFrom(src => src.default_flag));
+
+
+            CreateMap<CreateLovRequestModel, CreateLovRequestDto>();
+            CreateMap<CreatePoHeaderRequestDto, POHeader>()
+                .ForMember(dest => dest.forwarder_agent_id,
+                    opt => opt.MapFrom(src => src.forwarder_agent_id));
+            CreateMap<PoNoListResponse, PoNoListResponseDto>();
+            CreateMap<CreatePoDetailRequestDto, PODetail>()
+            .ForMember(dest => dest.ship_to_branch_plant_id,
+                opt => opt.MapFrom(src => src.ship_to_branch_plant_id));
+
+            CreateMap<UpdatePoHeaderRequestDto, POHeader>()
+                .ForMember(dest => dest.supplier_id,
+                    opt => opt.Ignore())
+                .ForMember(dest => dest.forwarder_agent_id,
+                    opt => opt.MapFrom(src => src.forwarder_agent_id));
+
+            CreateMap<UpdatePoDetailRequestDto, PODetail>()
+                .ForMember(dest => dest.qty, opt => opt.Ignore())
+                .ForMember(dest => dest.created_on, opt => opt.Ignore())
+                .ForMember(dest => dest.created_by, opt => opt.Ignore())
+                .ForMember(dest => dest.ship_to_branch_plant_id, opt =>
+                    opt.MapFrom(src => src.ship_to_branch_plant_id))
+                ;
+
+            CreateMap<PoResponse, PagedPoResponseDto>();
+            CreateMap<CreatePoHeaderRequestDto, POHeaderViewModel>();
+            CreateMap<UpdatePoHeaderRequestDto, POHeaderViewModel>();
+            CreateMap<CreatePoDetailRequestDto, PODetailViewModel>();
+            CreateMap<UpdatePoDetailRequestDto, PODetailViewModel>();
+            CreateMap<PoResponseDetail, PoResponse>();
+            CreateMap<PoResponseDetail, PagedPoResponseDto>();
+            CreateMap<PagePoDetailResponseDetail, PagePoDetailResponseDto>();
+            CreateMap<PoFileResponseDetail, PoFileResponse>();
+            CreateMap<PoNoListResponseDetail, PoNoListResponse>();
+            CreateMap<PoNoListResponseDetail, PoNoListResponseDto>();
+            CreateMap<POFilterRequestDto, PagedFilterPoRequestDto>();
+            CreateMap<PagedPORequestDto, PagedFilterPoRequestDto>();
+            CreateMap<SearchPoDetailRequestDto, PagedFilterPoRequestDto>();
+            CreateMap<PoDetailPackingInformationModel, PoDetailPackingInformationResponseDto>();
+            #endregion
+
+            #region File upload
+            CreateMap<UploadFileRequestModel, UploadFileRequestDto>()
+                    .ForMember(dest => dest.files, opt => opt.Ignore());
+            #endregion
+
+            #region ASN
+            CreateMap<SearchPagedRequestModel, PagedFilterAsnRequestDto>();
+            CreateMap<SearchPagedRequestDto, PagedFilterAsnRequestDto>();
+            CreateMap<AsnFilterRequestDto, PagedFilterAsnRequestDto>();
+            CreateMap<SearchPackingInfoRequestDto, PagedFilterAsnRequestDto>();
+            CreateMap<FilterAsnDetailRequestDto, PagedFilterAsnRequestDto>();
+
+
+            CreateMap<CreateASNRequestModel, CreateASNRequestDto>();
+            CreateMap<CreateASNInfoModel, CreateASNInfoRequestDto>();
+            CreateMap<CreateASNHeaderModel, CreateASNHeaderRequestDto>();
+            CreateMap<CreateASNDetailModel, CreateASNDetailRequestDto>();
+            CreateMap<UpdateASNRequestModel, UpdateASNRequestDto>();
+            CreateMap<UpdateASNInfoModel, UpdateASNInfoRequestDto>();
+            CreateMap<UpdateASNHeaderModel, UpdateASNHeaderRequestDto>();
+            CreateMap<UpdateASNDetailModel, UpdateASNDetailRequestDto>();
+
+            // # ignore map:
+            // - inbound_shipment_id exists in InboundShipment table with status flag of 0:New
+            // - issuing_branch_plant_id exisits in BranchPlant table with status flag of E
+            // - ship_to_branch_plant_id exists in BranchPlant table with status flag of E
+            // - supplier_id exists in Supplier table with status flag of E
+            // - invoice_currency_id exists in Currency table with status flag of E
+            CreateMap<CreateASNHeaderRequestDto, ASNHeader>()
+                //.ForMember(dest => dest.inbound_shipment_id, opt => opt.Ignore())
+                //.ForMember(dest => dest.issuing_branch_plant_id, opt => opt.Ignore())
+                //.ForMember(dest => dest.ship_to_branch_plant_id, opt => opt.Ignore())
+                //.ForMember(dest => dest.supplier_id, opt => opt.Ignore())
+                //.ForMember(dest => dest.invoice_currency_id, opt => opt.Ignore())
+                ;
+
+            CreateMap<UpdateASNHeaderRequestDto, ASNHeader>()
+                //.ForMember(dest => dest.inbound_shipment_id, opt => opt.Ignore())
+                //.ForMember(dest => dest.issuing_branch_plant_id, opt => opt.Ignore())
+                //.ForMember(dest => dest.ship_to_branch_plant_id, opt => opt.Ignore())
+                //.ForMember(dest => dest.supplier_id, opt => opt.Ignore())
+                //.ForMember(dest => dest.invoice_currency_id, opt => opt.Ignore())
+                ;
+
+            CreateMap<CreateASNDetailRequestDto, ASNDetail>();
+            CreateMap<UpdateASNDetailRequestDto, ASNDetail>()
+                .ForMember(dest => dest.qty, opt => opt.Ignore());
+            CreateMap<ASNHeader, AsnHeaderResponse>();
+            CreateMap<UploadAsnFileRequestModel, UploadAsnFileRequestDto>()
+                .ForMember(dest => dest.files, opt => opt.Ignore());
+            CreateMap<SearchPagedAsnRequestModel, PagedFilterAsnRequestDto>();
+            CreateMap<AsnFilterRequestModel, PagedFilterAsnRequestDto>();
+            CreateMap<SearchPagedAsnDetailRequestModel, PagedFilterAsnRequestDto>();
+            CreateMap<FilterAsnDetailRequestModel, PagedFilterAsnRequestDto>();
+            CreateMap<PageAsnResponseDetail, PageAsnResponse>();
+            CreateMap<PageAsnResponseDetail, PagedAsnResponseDto>();
+            CreateMap<PageAsnResponse, PagedAsnResponseDto>();
+            CreateMap<PageAsnDetailResponseDetail, PageAsnDetailResponseDto>();
+            CreateMap<AsnHeaderDetail, InboundShipmentDetailAnsResponse>();
+            CreateMap<AsnDetailResponseDetail, AsnDetailResponse>();
+            CreateMap<AsnPoResponseDetail, AsnPoResponse>();
+            CreateMap<AsnFileResponseDetail, AsnFileResponse>();
+            #endregion
+
+            #region Bl-Awb
+            CreateMap<InboundShipment, InboundShipmentResponseDto>();
+            //CreateMap<InboundShipmentBLAWB, InboundShipmentResponseDto>()
+                //.ForMember(dest => dest.id, opt => opt.Ignore())
+                //.ForMember(dest => dest.cargo_description, opt => opt.MapFrom(src => src.bl_awb_cargo_description))
+                //.ForMember(dest => dest.bl_awb_id, opt => opt.MapFrom(src => src.id));
+            CreateMap<CreateInboundShipmentRequestModel, InboundShipmentRequestDto>();
+            CreateMap<CreateInboundShipmentRequestDto, InboundShipmentRequestDto>();
+            CreateMap<UpdateInboundShipmentRequestModel, InboundShipmentRequestDto>();
+            CreateMap<BlAwbInfoRequestModel, BlAwbRequestDto>();
+            CreateMap<UpdateBlAwbInfoRequestModel, BlAwbRequestDto>();
+            CreateMap<CreateBlAwbRequestModel, InboundShipmentBLAWBRequestDto>();
+            CreateMap<UpdateBlAwbRequestModel, InboundShipmentBLAWBRequestDto>();
+
+            CreateMap<BlAwbContainerRequestModel, BlAwbContainerRequestDto>();
+            CreateMap<BlAwbRequestDto, InboundShipmentBLAWB>()
+                .ForMember(dest => dest.id,
+                    opt => opt.MapFrom(src => src.bl_awb_id));
+            CreateMap<CreateShipmentInfoRequestDto, InboundShipmentBLAWB>()
+                //.ForMember(dest => dest.bl_awb_cargo_description, opt => opt.MapFrom(src => src.cargo_description))
+                ;
+            CreateMap<InboundShipmentBLAWBRequestDto, InboundShipmentBLAWB>();
+            CreateMap<InboundShipmentRequestDto, InboundShipment>();
+            CreateMap<CreateInboundShipmentRequestDto, InboundShipment>();
+
+            CreateMap<InboundShipmentBlAwbDetail, InboundShipmentBlAwbResponse>();
+            #endregion
+
+            #region Container
+            CreateMap<CreateContainerRequestDto, Container>();
+            CreateMap<CreateContainerForAsnRequestDto, Container>();
+            CreateMap<BlAwbContainerRequestDto, Container>();
+            CreateMap<ContainerRequestModel, CreateContainerRequestDto>();
+            CreateMap<CreateContainerRequestModel, CreateContainerRequestDto>();
+            CreateMap<ContainerDetail, ContainerResponseDto>();
+            CreateMap<ContainerInfoModel, ContainerDetailResponseDto>();
+            CreateMap<ContainerDetailModel, PagedContainerResponseDto>();
+            CreateMap<ContainerAsns, asnResponse>();
+            CreateMap<ContainerReceivings, receivingResponse>();
+            CreateMap<ContainerPackingList, packingListResponse>();
+            CreateMap<ContainerFileModel, photoResponse>();
+            CreateMap<ContainerInboundShipment, inboundShipmentResponse>();
+            CreateMap<FileTrackingRequestDto, FileInfoRequestDto>();
+            CreateMap<FileUploadBaseRequestDto, FileInfoRequestDto>();
+            CreateMap<ContainerInboundShipmentBlawb, inboundShipmentBlawbResponse>();
+            CreateMap<CreateContainerForAsnRequestDto, ContainerViewModel>();
+            CreateMap<ContainerListForAsnResponseDetail, ContainerListForAsnResponseDto>();
+            CreateMap<ContainerListForAsnResponseDetail, ContainerResponse>();
+            #endregion
+
+            #region Site
+            CreateMap<ImportSiteData, Site>();
+            CreateMap<CreateSiteRequestModel, CreateSiteRequestDto>();
+            CreateMap<UpdateSiteRequestModel, UpdateSiteRequestDto>();
+            CreateMap<CreateSiteRequestDto, ValidateSiteRequest>();
+            CreateMap<UpdateSiteRequestDto, ValidateSiteRequest>();
+            CreateMap<CreateSiteRequestDto, Site>();
+            CreateMap<UpdateSiteRequestDto, Site>()
+                .ForMember(dest => dest.site_no,
+                    opt => opt.Ignore());
+            CreateMap<Site, SiteResponseDto>();
+            #endregion
+
+            #region ISH
+            CreateMap<CreateShipmentInfoRequestModel, CreateShipmentInfoRequestDto>();
+            //CreateMap<UpdateShipmentInfoRequestModel, UpdateShipmentInfoRequestDto>();
+            CreateMap<CreateASNHeaderRequestDto, ASNHeaderViewModel>();
+            CreateMap<UpdateASNHeaderRequestDto, ASNHeaderViewModel>();
+            CreateMap<CreateASNDetailRequestDto, ASNDetailViewModel>();
+            CreateMap<UpdateASNDetailRequestDto, ASNDetailViewModel>();
+            CreateMap<CreateShipmentInfoRequestDto, InboundShipment>();
+            CreateMap<CreateShipmentInfoRequestDto, InboundShipmentRequest>();
+            CreateMap<UpdateShipmentInfoRequestDto, InboundShipment>();
+            CreateMap<UpdateShipmentInfoRequestDto, InboundShipmentRequest>();
+            CreateMap<UpdateShipmentInfoRequestDto, InboundShipmentASN>();
+            //CreateMap<UpdateShipmentInfoRequestDto, InboundShipmentBLAWB>()
+            //.ForMember(dest => dest.bl_awb_cargo_description, opt => opt.MapFrom(src => src.cargo_description));
+            CreateMap<InboundShipmentRequest, InboundShipmentRequestResponseDto>();
+            CreateMap<InboundShipment, InboundShipmentResponse>();
+            CreateMap<UploadIhsRequestModel, UploadIhsRequestDto>()
+                .ForMember(dest => dest.files, opt => opt.Ignore());
+            CreateMap<MappingAsnRequestModel, MappingAsnRequestDto>();
+            CreateMap<InboundShipmentFileDetail, InboundShipmentFileResponse>();
+            CreateMap<PagedIshResponseDetail, PagedIshResponseDto>();
+            CreateMap<InboundShipmentDetail, InboundShipmentResponse>();
+            CreateMap<InboundShipmentPageAnsDetail, InboundShipmentPageAnsResponse>();
+            CreateMap<InboundShipmentPageBlAwbDetail, InboundShipmentPageBlAwbResponse>();
+            CreateMap<AsnInboundShipmentResponseDetail, InboundShipmentResponseDto>();
+            #endregion
+
+            #region ISR
+            CreateMap<SearchPagedIsRequestModel, PagedFilterIsRequestDto>();
+            CreateMap<IsrFilterRequestModel, PagedFilterIsRequestDto>();
+            CreateMap<IshFilterRequestModel, PagedFilterIsRequestDto>();
+            CreateMap<PagedIsrResponseDetail, PagedIsrResponseDto>();
+            CreateMap<InboundShipmentRequestPageDetail, InboundShipmentRequestPageResponse>();
+            CreateMap<InboundShipmentRequestPageAsnDetail, InboundShipmentRequestPageAsnResponse>();
+            CreateMap<InvoiceAsnResponseDetail, InvoiceAsnResponse>();
+            #endregion
+
+            #region Port
+            CreateMap<ImportPortData, Port>()
+                   .ForMember(dest => dest.status_flag,
+                       opt => opt.MapFrom(src => Utilities.MapBoolToStatus(true, true)));
+            CreateMap<PortInfoDetail, PortInfoResponseDto>();
+            CreateMap<PortDetail, PortResponseDto>();
+            #endregion
+
+            #region Group
+            CreateMap<Group, GroupResponseModel>();
+            CreateMap<Group, GroupFilterByGroupType>();
+            #endregion
+
+            #region company
+            CreateMap<Company, CompanyResponseModel>();
+            CreateMap<CompanyResponseModel, Company>();
+            CreateMap<CompanyPagedResponseDto, Company>().ReverseMap();
+            CreateMap<CompanyCreateRequestDto, Company>();
+            CreateMap<CompanyDetail, Company>();
+            CreateMap<GetCompanyList, CompanyDetail>();
+            CreateMap<CompanyDetail, GetCompanyList>();
+            #endregion
+
+            #region Invoice
+            CreateMap<UpdateInvoiceHeaderRequestDto, InvoiceHeaderRequestDto>();
+            CreateMap<UpdateInvoiceDetailRequestDto, InvoiceDetailRequestDto>();
+            CreateMap<AsnInvoiceResponseDetail, InvoiceResponse>();
+            CreateMap<AsnInvoiceHeaderModel, InvoiceHeaderResponse>();
+            CreateMap<AsnInvoiceDetailResponseModel, InvoiceDetailResponse>();
+            CreateMap<InvoicePagedResponseDetail, InvoicePagedResponseDto>();
+            CreateMap<InvoiceDetailPagedResponseDetail, InvoiceDetailPagedResponseDto>();
+            CreateMap<InvoiceHeader, InvoiceHeaderResponseDto>();
+            CreateMap<InvoiceInfoResponseModel, InvoiceInfoResponseDto>();
+            CreateMap<InvoiceHeaderResponseModel, InvoiceHeaderResponseDto>();
+            CreateMap<InvoiceDetailResponseModel, InvoiceDetailResponseDto>();
+            CreateMap<InvoiceFileResponseModel, InvoiceFileResponseDto>();
+            CreateMap<UploadInvoiceRequestModel, UploadInvoiceFileRequestDto>()
+                .ForMember(dest => dest.files, opt => opt.Ignore());
+            #endregion
+
+            #region Receiving
+            CreateMap<ReceivingInfoModel, PagedReceivingResponseDto>();
+            CreateMap<ReceivingItemModel, ReceivingItemDTO>();
+            CreateMap<ReceivingFileModel, RcvFileDetail>();
+            CreateMap<ReceivingItemDetailModel, ReceivingDetailBaseResponseDto>();
+            CreateMap<ReceivingDetailFileUrlResponseDto, ReceivingDetailFileResponseDto>();
+            CreateMap<ReceivingDetailBaseResponseDto, ReceivingDetailFileBinaryResponseDto>();
+            CreateMap<ReceivingInfoModel, ReceivingGetByIdFileUrlResponseDTO>();
+            CreateMap<ReceivingGetByIdFileUrlResponseDTO, ReceivingGetByIdFileBinaryResponseDTO>();
+            CreateMap<ReceivingPos, poResponse>();
+            CreateMap<ReceivingAsns, rcvAsnResponse>();
+            CreateMap<ReceivingSupplier, supplierResponse>();
+            CreateMap<packingListInfo, packingListInfoDto>();
+            #endregion
+
+            #region CostCenter
+            CreateMap<CostCenterResponseModel, CostCenter>().ReverseMap();
+            CreateMap<CostCenterResponseModel, CostCenterModel>().ReverseMap();
+            CreateMap<CompanyStructureCostCenterDb, CCCompanyStructureResponseModel>().ReverseMap();
+            #endregion
+
+            #region RevenueCenter
+            CreateMap<RevenueCenterResponseModel, RevenueCenter>().ReverseMap();
+            CreateMap<RevenueCenterResponseModel, RevenueCenterModel>().ReverseMap();
+            CreateMap<CompanyStructureRevenueCenterDb, RCCompanyStructureResponseModel>().ReverseMap();
+            #endregion
+
+            #region PackingList
+            CreateMap<PagedPackingInformationDetail, PagedPackingInformationResponseDto>();
+            CreateMap<PackingDiscrepancyListResponseDetail, PackingDiscrepancyListResponseDto>();
+            CreateMap<PackingInformationRequestDto, PackingDetail>();
+            CreateMap<UpdatePackingInformationRequestDto, PackingDetail>()
+                .ForMember(dest => dest.qty, opt => opt.Ignore());
+            #endregion
+
+            #region NaturalAccounts
+            CreateMap<NaturalAccountResponseModel, NaturalAccountModel>().ReverseMap();
+            CreateMap<NaturalAccountResponseModel, NaturalAccount>().ReverseMap();
+            #endregion
+
+        }
+    }
+}

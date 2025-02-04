@@ -1,0 +1,24 @@
+﻿using SERP.Application.Finance.CostCenters.DTOs.Request;
+using SERP.Application.Finance.CostCenters.DTOs.Response;
+using SERP.Application.Finance.RevenueCenters.DTOs.Request;
+using SERP.Domain.Common.Model;
+using SERP.Domain.Finance.CostCenters.Model;
+
+namespace SERP.Application.Finance.CostCenters.Services
+{
+    public interface ICostCenterService
+    {
+        Task<PagedResponse<CostCenterResponseModel>> GetAllPagedAsync(int page, int pageSize);
+        Task<CostCenterResponseModel> GetByIdAsync(int id);
+        Task<PagedResponse<CostCenterResponseModel>> SearchPagedAsync(int page, int pageSize, string keyword, SearchCostCenterRequestModel request);
+        Task CreateCostCenterAsync(CreateCostCenterRequestModel request, string userId);
+        Task DeleteCostCenterAsync(DeleteCostCenterRequestDto request);
+        Task UpdateCostCenterAsync(List<UpdateCostCenterRequestModel> requests, string userId);
+        Task<byte[]> GetCostCenterTemplate(string webRootPath);
+        Task<IEnumerable<CostCenterTreeResponseModel>> GetCostCenterTreeViewAsync();
+        Task ImportCostCenterAsync(string userId, ImportRevenueCenterRequestModel request);
+        Task<List<CCCompanyStructureResponseModel>> GetCompanyStructureCostCenter();
+        Task UpdateCostCenterCompanyStructureAsync(List<UpdateCostCenterCompanyStructureModel> requests);
+        Task<IEnumerable<CostCenterLimitedModel>> GetAllLimitedAsync(bool onlyEnabled);
+    }
+}

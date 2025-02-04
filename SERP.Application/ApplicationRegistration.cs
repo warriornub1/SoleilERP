@@ -1,0 +1,72 @@
+﻿using Microsoft.Extensions.DependencyInjection;
+using SERP.Application.Common;
+using SERP.Application.Common.Services;
+using SERP.Application.Finance.CompanyStructures.Services;
+using SERP.Application.Finance.CostCenters.Services;
+using SERP.Application.Finance.Groups.Services;
+using SERP.Application.Finance.Natural_Accounts.Services;
+using SERP.Application.Finance.RevenueCenters.Services;
+using SERP.Application.Masters.Agents.Services;
+using SERP.Application.Masters.ApplicationTokens.Services;
+using SERP.Application.Masters.BranchPlants.Services;
+using SERP.Application.Masters.Companies.Services;
+using SERP.Application.Masters.Countries.Services;
+using SERP.Application.Masters.Currencies.Services;
+using SERP.Application.Masters.Customers.Services;
+using SERP.Application.Masters.Items.Services;
+using SERP.Application.Masters.Lovs.Services;
+using SERP.Application.Masters.Ports.Services;
+using SERP.Application.Masters.Sites.Services;
+using SERP.Application.Masters.Suppliers.Services;
+using SERP.Application.Masters.SystemKVSs.Services;
+using SERP.Application.Transactions.AdvancedShipmentNotices.Services;
+using SERP.Application.Transactions.Containers.Services;
+using SERP.Application.Transactions.CustomViews.Services;
+using SERP.Application.Transactions.FilesTracking.Services;
+using SERP.Application.Transactions.InboundShipments.Services;
+using SERP.Application.Transactions.Invoices.Service;
+using SERP.Application.Transactions.PurchaseOrders.Services;
+using SERP.Application.Transactions.Receiving.Services;
+using SERP.Application.Transactions.Test;
+
+namespace SERP.Application
+{
+    public static class ApplicationRegistration
+    {
+        public static IServiceCollection AddApplicationServices(this IServiceCollection services)
+        {
+            services.AddAutoMapper(typeof(MappingProfile));
+            services.AddScoped<ISupplierService, SupplierService>();
+            services.AddScoped<IItemService, ItemService>();
+            services.AddScoped<ILovService, LovService>();
+            services.AddScoped<IBranchPlantService, BranchPlantService>();
+            services.AddScoped<ICustomerService, CustomerService>();
+            services.AddScoped<IAgentService, AgentService>();
+            services.AddScoped<ICurrencyService, CurrencyService>();
+            services.AddScoped<ICustomViewService, CustomViewService>();
+            services.AddScoped<IPurchaseOrderService, PurchaseOrderService>();
+            services.AddScoped<ICompanyService, CompanyService>();
+            services.AddScoped<IPortService, PortService>();
+            services.AddScoped<ISiteService, SiteService>();
+            services.AddScoped<IAdvancedShipmentNoticeService, AdvancedShipmentNoticeService>();
+            services.AddScoped<IDataRetrievalService, DataRetrievalService>();
+            services.AddScoped<ICountryService, CountryService>();
+            services.AddScoped<IInboundShipmentService, InboundShipmentService>();
+            services.AddScoped<IContainerService, ContainerService>();
+            services.AddScoped<IFilesTrackingService, FilesTrackingService>();
+            services.AddScoped<IApplicationTokenService, ApplicationTokenService>();
+            services.AddScoped<IGroupService, GroupService>();
+            services.AddScoped<IReceivingService, ReceivingService>();
+            services.AddScoped<ISystemKvsService, SystemKvsService>();
+            services.AddScoped<IReceivingService, ReceivingService>();
+            services.AddScoped<ISystemKvsService, SystemKvsService>();
+            services.AddScoped<ICostCenterService, CostCenterService>();
+            services.AddScoped<IRevenueCenterService, RevenueCenterService>();
+            services.AddScoped<IInvoiceService, InvoiceService>();
+            services.AddScoped<INaturalAccountService, NaturalAccountService>();
+            services.AddScoped<ICompanyStructureService, CompanyStructureService>();
+            services.AddScoped<ITestService, TestService>();
+            return services;
+        }
+    }
+}

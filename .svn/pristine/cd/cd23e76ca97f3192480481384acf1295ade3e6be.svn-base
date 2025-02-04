@@ -1,0 +1,23 @@
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  },
+  "AllowedHosts": "*",
+  "ConnectionStrings": {
+    "sqlConnection": "Data Source=DDXDB;Initial Catalog=SERP; User Id=SERP;Password=SlSSoleil2024D!;TrustServerCertificate=True;Connection Timeout=120;",
+    "sqlConnectionKY": "Data Source=(localdb)\\Local;Initial Catalog=SERP;TrustServerCertificate=True",
+    "HangfireConnection": "Data Source=(localdb)\\Local;Initial Catalog=Hangfire;TrustServerCertificate=True;"
+  },
+
+  "HangfireSettings": {
+    "Username": "admin",
+    "Password": "V1n0v@123!",
+    "WorkerCount": 1
+  },
+
+  "FileServerPath": "https://ddxapp:65002/",
+  "FileDirectoryPath": "C:\\FileServer\\Soleil"
+}

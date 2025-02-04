@@ -1,0 +1,23 @@
+﻿using SERP.Application.Masters.Companies.DTOs.Response;
+
+namespace SERP.Application.Finance.CostCenters.DTOs.Response
+{
+    public class CostCenterTreeResponseModel
+    {
+        public int group_id { get; set; }
+        public string group_code { get; set; }
+        public string group_description { get; set; }
+        public string status_flag { get; set; }
+        public int level { get; set; }
+        public List<CostCenterList>? cost_center_list { get; set; }
+        public List<CostCenterTreeResponseModel> child_group_list { get; set; }
+    }
+
+    public class CostCenterList
+    {
+        public int id { get; set; }
+        public string cost_center_code { get; set; }
+        public string cost_center_description { get; set; }
+        public string status_flag { get; set; }
+    }
+}

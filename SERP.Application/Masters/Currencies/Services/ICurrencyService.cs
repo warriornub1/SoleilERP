@@ -1,0 +1,11 @@
+﻿using SERP.Application.Masters.Currencies.DTOs;
+
+namespace SERP.Application.Masters.Currencies.Services
+{
+    public interface ICurrencyService
+    {
+        Task<List<CurrencyDto>> GetAllLimited(bool onlyEnabled);
+        Task<CurrencyExchangeDto?> GetExchangeRate(int fromCurrencyId, int toCurrencyId);
+        Task UpdateAllBasedCurrencyExchangeFixerIO();
+    }
+}

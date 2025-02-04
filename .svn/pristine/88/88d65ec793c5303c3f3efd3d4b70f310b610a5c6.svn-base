@@ -1,0 +1,30 @@
+﻿using AutoMapper;
+using SERP.Application.Masters.Currencies.DTOs;
+using SERP.Application.Masters.Currencies.Interfaces;
+
+namespace SERP.Application.Masters.Currencies.Services
+{
+    internal class CurrencyService : ICurrencyService
+    {
+        private readonly ICurrencyRepository _currencyRepository;
+        private readonly IMapper _mapper;
+
+        public CurrencyService(
+            ICurrencyRepository currencyRepository,
+            IMapper mapper)
+        {
+            _currencyRepository = currencyRepository;
+            _mapper = mapper;
+        }
+
+        public async Task<List<CurrencyDto>> GetAllLimited(bool onlyEnabled)
+        {
+            return _mapper.Map<List<CurrencyDto>>(await _currencyRepository.GetAllLimited(onlyEnabled));
+        }
+
+        public async Task<List<CurrencyExchangeDto>> GetExchangeRate(int fromCurrencyId, int toCurrencyId)
+        {
+            return _mapper.Map<List<CurrencyExchangeDto>>(await _currencyRepository.GetExchangeRate(fromCurrencyId, toCurrencyId));
+        }
+    }
+}

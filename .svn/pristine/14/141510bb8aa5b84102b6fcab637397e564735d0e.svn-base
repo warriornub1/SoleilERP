@@ -1,0 +1,1975 @@
+using System.Runtime.InteropServices;
+using AutoMapper;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging;
+using SERP.Application.Common;
+using SERP.Application.Common.Constants;
+using SERP.Application.Common.Exceptions;
+using SERP.Application.Common.Services;
+using SERP.Application.Masters.Agents.Interfaces;
+using SERP.Application.Masters.BranchPlants.Interfaces;
+using SERP.Application.Masters.Companies.Interfaces;
+using SERP.Application.Masters.Currencies.Interfaces;
+using SERP.Application.Masters.Items.Interfaces;
+using SERP.Application.Masters.Lovs.Interfaces;
+using SERP.Application.Masters.Ports.Interfaces;
+using SERP.Application.Masters.Sites.Interfaces;
+using SERP.Application.Masters.Suppliers.Interfaces;
+using SERP.Application.Transactions.FilesTracking.Interfaces;
+using SERP.Application.Transactions.PurchaseOrders.DTOs.Request;
+using SERP.Application.Transactions.PurchaseOrders.DTOs.Response;
+using SERP.Application.Transactions.PurchaseOrders.Interfaces;
+using SERP.Application.Transactions.SequencesTracking.Interfaces;
+using SERP.Domain.Common.Constants;
+using SERP.Domain.Common.Model;
+using SERP.Domain.Masters.Agents;
+using SERP.Domain.Masters.BranchPlants;
+using SERP.Domain.Masters.Companies;
+using SERP.Domain.Masters.Currencies;
+using SERP.Domain.Masters.Items;
+using SERP.Domain.Masters.LOVs;
+using SERP.Domain.Masters.Ports;
+using SERP.Domain.Masters.Sites;
+using SERP.Domain.Masters.Suppliers;
+using SERP.Domain.Transactions.FilesTracking;
+using SERP.Domain.Transactions.PurchaseOrders;
+using SERP.Domain.Transactions.PurchaseOrders.Model;
+using SERP.Domain.Transactions.PurchaseOrders.Model.Base;
+using static SERP.Domain.Common.Constants.DomainConstant;
+using static SERP.Domain.Common.Enums.SERPEnum;
+namespace SERP.Application.Transactions.PurchaseOrders.Services
+{
+    internal class PurchaseOrderService : IPurchaseOrderService
+    {
+        private readonly IAgentRepository _agentRepository;
+        private readonly IBranchPlantRepository _branchPlantRepository;
+        private readonly ICompanyRepository _companyRepository;
+        private readonly ICurrencyRepository _currencyRepository;
+        private readonly IDataRetrievalService _dataRetrievalService;
+        private readonly IFileTrackingRepository _fileTrackingRepository;
+        private readonly IMapper _mapper;
+        private readonly IPOHeaderRepository _poHeaderRepository;
+        private readonly IPODetailRepository _poDetailRepository;
+        private readonly IPOFileRepository _poFileRepository;
+        private readonly IPortRepository _portRepository;
+        private readonly ILovRepository _lovRepository;
+        private readonly ILogger<PurchaseOrderService> _logger;
+        private readonly IItemRepository _itemRepository;
+        private readonly ISupplierRepository _supplierRepository;
+        private readonly ISupplierItemMappingRepository _supplierItemMappingRepository;
+        private readonly ISupplierSecondaryRepository _supplierSecondaryRepository;
+        private readonly ISiteRepository _siteRepository;
+        private readonly ISequenceTrackingRepository _sequenceTrackingRepository;
+        private readonly IUnitOfWork _unitOfWork;
+
+        public PurchaseOrderService(
+            IAgentRepository agentRepository,
+            IBranchPlantRepository branchPlantRepository,
+            ICompanyRepository companyRepository,
+            ICurrencyRepository currencyRepository,
+            IDataRetrievalService dataRetrievalService,
+            IFileTrackingRepository fileTrackingRepository,
+            IMapper mapper,
+            IPOHeaderRepository poHeaderRepository,
+            IPODetailRepository poDetailRepository,
+            IPOFileRepository poFileRepository,
+            IPortRepository portRepository,
+            ILovRepository lovRepository,
+            ILogger<PurchaseOrderService> logger,
+            IItemRepository itemRepository,
+            ISupplierRepository supplierRepository,
+            ISupplierItemMappingRepository supplierItemMappingRepository,
+            ISupplierSecondaryRepository supplierSecondaryRepository,
+            ISiteRepository siteRepository,
+            ISequenceTrackingRepository sequenceTrackingRepository,
+            IUnitOfWork unitOfWork
+        )
+        {
+            _agentRepository = agentRepository;
+            _branchPlantRepository = branchPlantRepository;
+            _companyRepository = companyRepository;
+            _currencyRepository = currencyRepository;
+            _dataRetrievalService = dataRetrievalService;
+            _fileTrackingRepository = fileTrackingRepository;
+            _mapper = mapper;
+            _poHeaderRepository = poHeaderRepository;
+            _poDetailRepository = poDetailRepository;
+            _poFileRepository = poFileRepository;
+            _portRepository = portRepository;
+            _lovRepository = lovRepository;
+            _logger = logger;
+            _itemRepository = itemRepository;
+            _supplierRepository = supplierRepository;
+            _supplierItemMappingRepository = supplierItemMappingRepository;
+            _supplierSecondaryRepository = supplierSecondaryRepository;
+            _siteRepository = siteRepository;
+            _sequenceTrackingRepository = sequenceTrackingRepository;
+            _unitOfWork = unitOfWork;
+        }
+
+        public async Task<PagedResponse<PagedPoResponseDto>> PagedFilterPoAsync(PagedFilterPoRequestDto request)
+        {
+            var pageable = PagingUtilities.GetPageable(request.Page, request.PageSize);
+            var skipRow = PagingUtilities.GetSkipRow(pageable.Page, pageable.Size);
+
+            if (request.BranchPlants is null || request.BranchPlants.Count == 0)
+            {
+                return new PagedResponse<PagedPoResponseDto>();
+            }
+
+            var query = _poDetailRepository.BuildPoFilterQuery(new PagedFilterPoRequestModel
+            {
+                Keyword = request.Keyword,
+                AllowZeroOpenQty = request.AllowZeroOpenQty,
+                bpNo = request.branchPlantNo,
+                Suppliers = request.Suppliers,
+                PoHeaderIDs = request.PoHeaderIDs,
+                Items = request.Items,
+                BranchPlants = request.BranchPlants,
+                Statuses = request.Statuses,
+                line_type = request.line_type,
+                create_date_from = request.create_date_from,
+                create_date_to = request.create_date_to
+            }, out var totalRows);
+
+            var listSort = new List<Sortable>
+            {
+                new()
+                {
+                    FieldName = request.SortBy ?? DefaultSortField.PO,
+                    IsAscending = request.SortAscending
+                }
+            };
+
+            var orderBy = ApplySort.GetOrderByFunction<PoResponseDetail>(listSort);
+
+            if (totalRows == 0)
+            {
+                return new PagedResponse<PagedPoResponseDto>();
+            }
+
+            var totalPage = (int)Math.Ceiling(totalRows / (request.PageSize * 1.0));
+            var pagedResponse = orderBy(query).Skip(skipRow).Take(pageable.Size).ToList();
+
+            var result = _mapper.Map<List<PagedPoResponseDto>>(pagedResponse);
+
+            await FillDataForPagedResponseAsync(result);
+
+            return new PagedResponse<PagedPoResponseDto>
+            {
+                Items = result,
+                TotalItems = totalRows,
+                TotalPage = totalPage,
+                Page = pageable.Page,
+                PageSize = pageable.Size
+            };
+        }
+
+        public async Task<PoDetailResponseDto> GetByIdAsync(int id)
+        {
+            var poHeader = await _poHeaderRepository.GetByIdAsync(x => x.id == id);
+
+            if (poHeader is null)
+            {
+                throw new NotFoundException(ErrorCodes.PurchaseOrderNotFound,
+                    string.Format(ErrorMessages.PurchaseOrderNotFound, nameof(POHeader.id), id));
+            }
+
+            var result = await GetPurchaseOrderInfo(poHeader);
+
+            return result;
+        }
+
+        public async Task<PoDetailResponseDto> GetByPoNoAsync(string poNo)
+        {
+            var poHeader = await _poHeaderRepository.GetByIdAsync(x => x.po_no == poNo);
+
+            if (poHeader is null)
+            {
+                throw new NotFoundException(ErrorCodes.PurchaseOrderNotFound,
+                    string.Format(ErrorMessages.PurchaseOrderNotFound, nameof(POHeader.po_no), poNo));
+            }
+
+            var result = await GetPurchaseOrderInfo(poHeader);
+
+            return result;
+        }
+
+        public async Task<int[]> CreatePoAsync(string userId, CreatePoRequestDto request)
+        {
+            await ValidatePoRequest(request.pos.Select(x => new ValidatePORequest
+            {
+                po_header = _mapper.Map<POHeaderViewModel>(x.po_header),
+                po_detail = _mapper.Map<List<PODetailViewModel>>(x.po_detail)
+            }).ToList());
+
+            // SE-205: Allow duplicate file name for the system.
+            //var fileNames = request.files.Select(x => x.FileName).ToArray();
+            //await ValidateFileUpload(fileNames);
+
+            var poHeaderToInsert = new List<POHeader>();
+            var fileTrackingToInsert = new List<FileTracking>();
+            var urlPathList = new List<string>();
+            var listPoInfo = new List<PoInfo>(); // mapping between POHeader and PODetail
+            // Handle for po file
+            if (request.files != null)
+            {
+                foreach (var item in request.files)
+                {
+                    var urlPath = await Utilities.SaveFileUpload(item);
+                    urlPathList.Add(urlPath);
+                    var fileTracking = new FileTracking
+                    {
+                        created_by = userId,
+                        file_type = item.ContentType,
+                        file_name = item.FileName,
+                        upload_source = request.upload_source,
+                        url_path = urlPath,
+                        file_size = Utilities.ConvertFileLengthToMegabytes(item.Length),
+                    };
+
+                    fileTrackingToInsert.Add(fileTracking);
+                }
+            }
+
+            foreach (var poInfoRequest in request.pos)
+            {
+                var poHeaderMapped = _mapper.Map<POHeader>(poInfoRequest.po_header);
+
+                // - PO No is formatted as POYYMM99999
+                var seq = await _sequenceTrackingRepository.GetSequenceNoByType(SequenceTracking.Type.PurchaseOrder);
+                if (!string.IsNullOrEmpty(poHeaderMapped.status_flag))
+                {
+                    poHeaderMapped.status_flag =
+                        request.action == DomainConstant.Action.Submit
+                            ? PurchaseOrder.StatusFlag.New
+                            : PurchaseOrder.StatusFlag.Draft;
+                }
+
+                poHeaderMapped.po_no = $"{SequenceTracking.Type.PurchaseOrder}{DateTime.Now:yyMM}{seq:00000}";
+                poHeaderMapped.created_by = userId;
+                poHeaderMapped.created_on = DateTime.Now;
+
+                var poDetailMapped = _mapper.Map<List<PODetail>>(poInfoRequest.po_detail);
+                CalculateAmountAndDiscount(poHeaderMapped, poDetailMapped);
+
+                // To indicate if PO has attachment
+                poHeaderMapped.attachment_flag = fileTrackingToInsert.Count > 0;
+                // To indicate if any of the PO Line has Notes to Warehouse
+                poHeaderMapped.notes_to_warehouse_flag = poDetailMapped.Any(x => !string.IsNullOrEmpty(x.notes_to_warehouse));
+
+                poHeaderToInsert.Add(poHeaderMapped);
+
+                listPoInfo.Add(new PoInfo
+                {
+                    POHeader = poHeaderMapped,
+                    PODetail = poDetailMapped,
+                    FileTrackings = fileTrackingToInsert
+                });
+            }
+
+            try
+            {
+                if (poHeaderToInsert.Count == 0)
+                {
+                    _logger.LogWarning("No PO header data to insert");
+                    return [];
+                }
+
+                _unitOfWork.BeginTransaction();
+                if (fileTrackingToInsert.Count > 0)
+                {
+                    await _fileTrackingRepository.CreateRangeAsync(fileTrackingToInsert);
+                }
+
+                await _poHeaderRepository.CreateRangeAsync(poHeaderToInsert);
+                await _unitOfWork.SaveChangesAsync();
+
+
+                var poDetailToInsert = new List<PODetail>();
+                var poFileToInsert = new List<POFile>();
+                foreach (var poInfo in listPoInfo)
+                {
+                    var poNo = 0;
+                    poInfo.PODetail.ForEach(x =>
+                    {
+                        //- PO Detail Status Flag will follow PO Header Status Flag
+                        if (string.IsNullOrEmpty(x.status_flag))
+                        {
+                            x.status_flag = poInfo.POHeader.status_flag;
+                        }
+                        x.open_qty = x.qty;
+
+                        // Extended Cost is (unit_cost - unit_discount)  * qty
+                        x.extended_cost = (x.unit_cost * x.unit_discount) * x.qty;
+                        x.line_no = ++poNo;
+                        x.po_header_id = poInfo.POHeader.id;
+                        x.created_by = userId;
+                        x.created_on = DateTime.Now;
+                    });
+
+                    poDetailToInsert.AddRange(poInfo.PODetail);
+
+                    //Handle for PO file
+                    foreach (var fileTracking in poInfo.FileTrackings)
+                    {
+                        poFileToInsert.Add(new POFile
+                        {
+                            file_id = fileTracking.id,
+                            po_header_id = poInfo.POHeader.id,
+                            created_on = DateTime.Now,
+                            created_by = userId,
+                        });
+                    }
+                }
+
+                if (poDetailToInsert.Count > 0)
+                {
+                    await _poDetailRepository.CreateRangeAsync(poDetailToInsert);
+                }
+
+                if (poFileToInsert.Count > 0)
+                {
+                    await _poFileRepository.CreateRangeAsync(poFileToInsert);
+                }
+
+                await _unitOfWork.SaveChangesAsync();
+                _unitOfWork.Commit();
+            }
+            catch (Exception e)
+            {
+                _unitOfWork.Rollback();
+                _logger.LogError(e, e.ToString());
+
+                foreach (var urlPath in urlPathList)
+                {
+                    Directory.Delete(urlPath, true);
+                }
+
+                throw;
+            }
+
+            // - PO No is formatted as POYYMM99999
+            // - PO Detail Line No starts from 1
+
+            return poHeaderToInsert.Select(x => x.id).ToArray();
+        }
+
+        public async Task UpdatePoAsync(string userId, UpdatePoRequestDto request)
+        {
+            await ValidatePoRequest(request.pos.Select(x => new ValidatePORequest
+            {
+                po_header = _mapper.Map<POHeaderViewModel>(x.po_header),
+                po_detail = _mapper.Map<List<PODetailViewModel>>(x.po_detail)
+            }).ToList());
+
+            var poHeaderToUpdate = new List<POHeader>();
+            var poDetailToUpdate = new List<PODetail>();
+            var poDetailToInsert = new List<PODetail>();
+
+            var requestPoHeaderIDs = request.pos.Select(x => x.po_header.id).Distinct().ToHashSet();
+            var dicPoHeader = await _poHeaderRepository.GetDictionaryAsync(x => requestPoHeaderIDs.Contains(x.id));
+            var dicPoHeaderHasAttachmentCheck = await _poFileRepository.HasAttachmentCheck(requestPoHeaderIDs);
+
+            var requestPoDetailIDs = request.pos.Where(x => x.po_detail != null)
+                .SelectMany(x => x.po_detail!)
+                .Select(x => x.id).Distinct().ToHashSet();
+            var dicPoDetail = await _poDetailRepository.GetDictionaryAsync(x => requestPoDetailIDs.Contains(x.id));
+            var lineNo = 0;
+            if (dicPoDetail.Values.Count > 0)
+            {
+                lineNo = dicPoDetail.Values.Max(x => x.line_no);
+            }
+
+            foreach (var poInfoRequestUpdate in request.pos)
+            {
+                dicPoHeader.TryGetValue(poInfoRequestUpdate.po_header.id, out var poHeader);
+                if (poHeader is null)
+                {
+                    throw new NotFoundException(ErrorCodes.PurchaseOrderNotFound,
+                        string.Format(ErrorMessages.PurchaseOrderNotFound, nameof(POHeader.id),
+                            poInfoRequestUpdate.po_header.id));
+                }
+
+                _mapper.Map(poInfoRequestUpdate.po_header, poHeader);
+
+                poHeader.last_modified_by = userId;
+                poHeader.last_modified_on = DateTime.Now;
+
+                if (poInfoRequestUpdate.po_detail != null)
+                {
+                    foreach (var poDetailRequestUpdate in poInfoRequestUpdate.po_detail)
+                    {
+                        var mode = Mode.Update;
+                        dicPoDetail.TryGetValue(poDetailRequestUpdate.id, out var poDetail);
+
+                        if (poDetail is null)
+                        {
+                            mode = Mode.Insert;
+                            poDetail = new PODetail();
+                        }
+
+                        _mapper.Map(poDetailRequestUpdate, poDetail);
+                        switch (mode)
+                        {
+                            case Mode.Insert:
+                                {
+                                    poDetail.qty = poDetailRequestUpdate.qty ?? 0;
+                                    // - PODetail.open_qty will follow qty
+                                    poDetail.open_qty = poDetailRequestUpdate.qty ?? 0;
+
+                                    // Extended Cost is (unit_cost - unit_discount)  * qty
+                                    poDetail.extended_cost = (poDetail.unit_cost * poDetail.unit_discount) * poDetail.qty;
+                                    poDetail.created_by = userId;
+                                    poDetail.line_no = ++lineNo;
+                                    poDetail.created_on = DateTime.Now;
+                                    poDetail.po_header_id = poHeader.id;
+                                    poDetailToInsert.Add(poDetail);
+                                    break;
+                                }
+                            case Mode.Update:
+                                {
+                                    // - If PO Detail qty is modified, get the difference from the previous qty and add back to open_qty.
+                                    // Example change qty from 6 to 5. Change is -1. Add this back to open_qty which is -1 in this case.
+                                    // OR change qty from 6 to 7, Add this back to open_qty which is 1.
+
+                                    /* Test cases
+                                     * Qty: 6, change Qty: 6 -> 0
+                                     * not changed
+
+                                       When modified:
+                                       const X =  New PO.qty - old PO.qty
+                                       new open_qty = old open_qty + X
+                                     */
+                                    var newPoQty = poDetailRequestUpdate.qty ?? 0;
+
+                                    var poQtyChanged = newPoQty - poDetail.qty;
+
+                                    if (poQtyChanged != 0)
+                                    {
+                                        poDetail.open_qty += poQtyChanged;
+                                        poDetail.qty = newPoQty;
+                                    }
+
+                                    // - Po Qty cannot be more than PO Line open_qty
+                                    if (poDetail.open_qty < 0)
+                                    {
+                                        throw new BadRequestException(string.Format(ErrorMessages.PoQtyExceeds,
+                                            poDetail.line_no));
+                                    }
+
+                                    // Extended Cost is (unit_cost - unit_discount)  * qty
+                                    poDetail.extended_cost = (poDetail.unit_cost * poDetail.unit_discount) * poDetail.qty;
+                                    poDetail.line_no = ++lineNo;
+                                    poDetail.last_modified_by = userId;
+                                    poDetail.last_modified_on = DateTime.Now;
+                                    poDetailToUpdate.Add(poDetail);
+                                    break;
+                                }
+                        }
+                    }
+                }
+
+                var poDetails = poDetailToInsert.Concat(poDetailToUpdate).ToList();
+                // To indicate if PO has attachment
+                if (!dicPoHeaderHasAttachmentCheck.TryGetValue(poHeader.id, out var hasAttachment))
+                {
+                    hasAttachment = false;
+                }
+                poHeader.attachment_flag = hasAttachment;
+
+                // To indicate if any of the PO Line has Notes to Warehouse
+                poHeader.notes_to_warehouse_flag = poDetails.Any(x => !string.IsNullOrEmpty(x.notes_to_warehouse));
+
+                // - Calculate Amount for total_amt_base and total_amt_foreign
+                CalculateAmountAndDiscount(poHeader, poDetails);
+
+                poHeaderToUpdate.Add(poHeader);
+            }
+
+            try
+            {
+                _unitOfWork.BeginTransaction();
+                if (poHeaderToUpdate.Count > 0)
+                {
+                    await _poHeaderRepository.UpdateRangeAsync(poHeaderToUpdate);
+                }
+
+                if (poDetailToUpdate.Count > 0)
+                {
+                    await _poDetailRepository.UpdateRangeAsync(poDetailToUpdate);
+                }
+
+                if (poDetailToInsert.Count > 0)
+                {
+                    await _poDetailRepository.CreateRangeAsync(poDetailToInsert);
+                }
+
+                await _unitOfWork.SaveChangesAsync();
+                _unitOfWork.Commit();
+            }
+            catch (Exception ex)
+            {
+                _unitOfWork.Rollback();
+                _logger.LogError(ex, ex.Message);
+                throw;
+            }
+
+        }
+
+        public async Task<int[]> UploadFileAsync(string userId, UploadFileRequestDto request)
+        {
+            var poHeader = await _poHeaderRepository.GetByIdAsync(x => x.id == request.po_header_id);
+
+            if (poHeader is null)
+            {
+                throw new NotFoundException(ErrorCodes.PurchaseOrderNotFound,
+                    string.Format(ErrorMessages.PurchaseOrderNotFound, nameof(POHeader.id),
+                        request.po_header_id));
+            }
+
+            // validate duplicate item-name in request
+            // SE-205: Allow duplicate file name for the system.
+            //var fileNames = request.files.Select(x => x.file.FileName).ToArray();
+            //await ValidateFileUpload(fileNames);
+
+            var fileTrackingToInsert = new List<FileTracking>();
+
+            foreach (var item in request.files)
+            {
+                var fileTracking = new FileTracking
+                {
+                    created_by = userId,
+                    file_type = item.file.ContentType,
+                    file_name = item.file.FileName,
+                    upload_source = request.upload_source,
+                    url_path = item.url_path,
+                    file_size = Utilities.ConvertFileLengthToMegabytes(item.file.Length),
+                };
+
+                fileTrackingToInsert.Add(fileTracking);
+            }
+
+            if (fileTrackingToInsert.Count == 0)
+            {
+                return [];
+            }
+
+            // Update attachment_flag to true if there are attachment.
+            poHeader.attachment_flag = true;
+
+            int[] poFileIDs;
+            try
+            {
+                _unitOfWork.BeginTransaction();
+                await _fileTrackingRepository.CreateRangeAsync(fileTrackingToInsert);
+                await _unitOfWork.SaveChangesAsync();
+
+                var poFileToInsert = fileTrackingToInsert.Select(x => new POFile
+                {
+                    created_by = userId,
+                    po_header_id = request.po_header_id,
+                    file_id = x.id
+                }).ToList();
+
+                if (poFileToInsert.Count > 0)
+                {
+                    await _poFileRepository.CreateRangeAsync(poFileToInsert);
+                }
+
+                await _poHeaderRepository.UpdateAsync(poHeader);
+                await _unitOfWork.SaveChangesAsync();
+
+                _unitOfWork.Commit();
+                poFileIDs = poFileToInsert.Select(x => x.id).ToArray();
+            }
+            catch (Exception e)
+            {
+                _unitOfWork.Rollback();
+                throw;
+            }
+
+            return poFileIDs;
+        }
+
+        public async Task<List<string>> RemoveFileAsync(int poHeaderId, List<int> poFileIDs)
+        {
+            var poHeader = await _poHeaderRepository.GetByIdAsync(x => x.id == poHeaderId);
+
+            if (poHeader is null)
+            {
+                throw new NotFoundException(ErrorCodes.PurchaseOrderNotFound,
+                    string.Format(ErrorMessages.PurchaseOrderNotFound, nameof(POHeader.id), poHeaderId));
+            }
+
+            var poFile = await GetPoFileAsync(poHeaderId);
+
+            if (poFile is null)
+            {
+                throw new NotFoundException(ErrorCodes.POFileNotFound,
+                    string.Format(ErrorMessages.POFileNotFound, poFileIDs));
+            }
+
+            var poFileToDelete = poFile.Where(x => poFileIDs.Contains(x.id)).ToList();
+            var listFileTrackingIDs = poFileToDelete.Select(x => x.file_id).Distinct().ToHashSet();
+            var fileTrackingToDelete = await GetFileTrackingAsync(listFileTrackingIDs);
+
+            if (fileTrackingToDelete is null)
+            {
+                throw new NotFoundException(ErrorCodes.FileTrackingNotFound,
+                    string.Format(ErrorMessages.FileTrackingNotFound, poFileIDs));
+            }
+
+            //  Update attachment_flag to false if all attachment are removed.
+            if (poFileToDelete.Count == poFile.Count)
+            {
+                poHeader.attachment_flag = false;
+            }
+
+            var filePath = fileTrackingToDelete.Select(x => x.url_path).ToList();
+            try
+            {
+                _unitOfWork.BeginTransaction();
+
+                await _poFileRepository.DeleteRangeAsync(poFileToDelete);
+                await _fileTrackingRepository.DeleteRangeAsync(fileTrackingToDelete);
+
+                await _unitOfWork.SaveChangesAsync();
+                _unitOfWork.Commit();
+            }
+            catch (Exception e)
+            {
+                _unitOfWork.Rollback();
+                _logger.LogError(e, e.Message);
+                throw;
+            }
+
+            return filePath;
+        }
+
+        public async Task DeletePOLineAsync(string userId, DeletePoLineRequestDto request)
+        {
+            var poLines = await _poDetailRepository.GetPoLineForDeleteAsync(request.PoHeaderId, request.PoDetailIDs);
+
+            if (poLines.Count == 0)
+            {
+                return;
+            }
+
+            // - PO Details status should be 01: Draft or 02: New
+            if (poLines.Any(x => x.status_flag != PurchaseOrder.StatusFlag.Draft && x.status_flag != PurchaseOrder.StatusFlag.New))
+            {
+                throw new BadRequestException(ErrorCodes.ValidationError,
+                    ErrorMessages.CannotDeletePOLine);
+            }
+
+            var poDetailToUpdate = new List<PODetail>();
+            var poDetailToDelete = new List<PODetail>();
+            foreach (var poDetail in poLines)
+            {
+                switch (poDetail.status_flag)
+                {
+                    // Update PO Detail to status 90: Cancelled if status is 02: New
+                    case PurchaseOrder.StatusFlag.New:
+                        {
+                            poDetail.status_flag = PurchaseOrder.StatusFlag.Cancelled;
+                            poDetail.last_modified_by = userId;
+                            poDetail.last_modified_on = DateTime.Now;
+                            poDetailToUpdate.Add(poDetail);
+                            break;
+                        }
+                    // Delete PO Detail if status is 01: Draft
+                    case PurchaseOrder.StatusFlag.Draft:
+                        {
+                            poDetailToDelete.Add(poDetail);
+                            break;
+                        }
+                }
+            }
+
+            try
+            {
+                _unitOfWork.BeginTransaction();
+                if (poDetailToUpdate.Count > 0)
+                {
+                    await _poDetailRepository.UpdateRangeAsync(poDetailToUpdate);
+
+                    //- If after updating to cancelled, check all PO Detail in PO Header ID. If all is cancelled, update PO Header status_flag to 90:Cancelled.
+                    if (poDetailToUpdate.All(x => x.status_flag == PurchaseOrder.StatusFlag.Cancelled))
+                    {
+                        // Update PO Header
+                        var poHeader = await _poHeaderRepository.GetByIdAsync(x => x.id == request.PoHeaderId);
+                        if (poHeader is null)
+                        {
+                            throw new NotFoundException(ErrorCodes.PurchaseOrderNotFound,
+                                string.Format(ErrorMessages.PurchaseOrderNotFound, nameof(POHeader.id),
+                                    request.PoHeaderId));
+                        }
+
+                        poHeader.status_flag = PurchaseOrder.StatusFlag.Cancelled;
+                        poHeader.last_modified_by = userId;
+                        poHeader.last_modified_on = DateTime.Now;
+                        await _poHeaderRepository.UpdateAsync(poHeader);
+                    }
+                }
+
+                if (poDetailToDelete.Count > 0)
+                {
+                    await _poDetailRepository.DeleteRangeAsync(poDetailToDelete);
+                }
+
+                await _unitOfWork.SaveChangesAsync();
+                _unitOfWork.Commit();
+            }
+            catch (Exception ex)
+            {
+                _unitOfWork.Rollback();
+                _logger.LogError(ex, ex.Message);
+                throw;
+            }
+
+        }
+
+        public Task<PagedResponse<PagePoDetailResponseDto>> SearchDetailPaged(PagedFilterPoRequestDto request)
+        {
+            if (request.BranchPlants is null || request.BranchPlants.Count == 0)
+            {
+                return Task.FromResult(new PagedResponse<PagePoDetailResponseDto>());
+            }
+
+            var query = _poDetailRepository.BuildPoDetailFilterQuery(new PagedFilterPoRequestModel
+            {
+                Keyword = request.Keyword,
+                AllowZeroOpenQty = request.AllowZeroOpenQty,
+                bpNo = request.branchPlantNo,
+                Suppliers = request.Suppliers,
+                PoHeaderIDs = request.PoHeaderIDs,
+                Items = request.Items,
+                BranchPlants = request.BranchPlants,
+                Statuses = request.Statuses,
+                line_type = request.line_type,
+                create_date_from = request.create_date_from,
+                create_date_to = request.create_date_to
+            }, out var totalRows);
+
+            var listSort = new List<Sortable>
+            {
+                new()
+                {
+                    FieldName = request.SortBy ?? DefaultSortField.PODetail,
+                    IsAscending = request.SortAscending
+                }
+            };
+
+            var orderBy = ApplySort.GetOrderByFunction<PagePoDetailResponseDetail>(listSort);
+
+            if (totalRows == 0)
+            {
+                return Task.FromResult(new PagedResponse<PagePoDetailResponseDto>());
+            }
+
+            var pageable = PagingUtilities.GetPageable(request.Page, request.PageSize);
+            var skipRow = PagingUtilities.GetSkipRow(pageable.Page, pageable.Size);
+            var totalPage = (int)Math.Ceiling(totalRows / (double)pageable.Size);
+
+            var pagedResponse = orderBy(query)
+                .Skip(skipRow)
+                .Take(pageable.Size)
+                .ToList();
+
+            return Task.FromResult(new PagedResponse<PagePoDetailResponseDto>
+            {
+                Items = _mapper.Map<List<PagePoDetailResponseDto>>(pagedResponse),
+                TotalItems = totalRows,
+                TotalPage = totalPage,
+                Page = pageable.Page,
+                PageSize = pageable.Size
+            });
+        }
+
+        public async Task<List<PoNoListResponseDto>> GetPoNoListAsync(PoNoRequestDto request)
+        {
+            var poInfo = await _poDetailRepository.GetPoNoInfoList(new PoNoRequestDetail
+            {
+                Suppliers = request.Suppliers,
+                Status = request.Status,
+                BpNo = request.branchPlantNo,
+                OnlyWithOpenQty = request.onlyWithOpenQty
+            });
+
+            var result = _mapper.Map<List<PoNoListResponseDto>>(poInfo);
+            return result;
+        }
+
+        public async Task DeletePOAsync(string userId, int poHeaderId)
+        {
+            var poHeader = await _poHeaderRepository.GetByIdAsync(x => x.id == poHeaderId);
+            if (poHeader is null)
+            {
+                throw new NotFoundException(ErrorCodes.PurchaseOrderNotFound,
+                    string.Format(ErrorMessages.PurchaseOrderNotFound, nameof(POHeader.id), poHeaderId));
+            }
+
+            var poDetails = await GetPoDetailByPoHeaderId(poHeaderId);
+
+            switch (poHeader.status_flag)
+            {
+                // - Update PO Header and Detail to status 90: Cancelled if status is 02: New
+                case PurchaseOrder.StatusFlag.New:
+                    {
+                        // [SE-131]
+                        // - If PO Header Status is 02: New. All Details status should be 02:New or 90:Cancelled 
+                        if (poDetails.Any(x => x.status_flag != PurchaseOrder.StatusFlag.New &&
+                                               x.status_flag != PurchaseOrder.StatusFlag.Cancelled))
+                        {
+                            throw new BadRequestException(ErrorCodes.ValidationError,
+                                ErrorMessages.CannotDeletePOStatusNew);
+                        }
+
+                        poHeader.status_flag = PurchaseOrder.StatusFlag.Cancelled;
+                        poHeader.last_modified_by = userId;
+                        poHeader.last_modified_on = DateTime.Now;
+
+                        foreach (var poDetail in poDetails)
+                        {
+                            poDetail.status_flag = PurchaseOrder.StatusFlag.Cancelled;
+                            poDetail.last_modified_by = userId;
+                            poDetail.last_modified_on = DateTime.Now;
+                        }
+
+                        try
+                        {
+                            _unitOfWork.BeginTransaction();
+                            await _poHeaderRepository.UpdateAsync(poHeader);
+                            await _poDetailRepository.UpdateRangeAsync(poDetails);
+                            await _unitOfWork.SaveChangesAsync();
+                            _unitOfWork.Commit();
+                        }
+                        catch (Exception ex)
+                        {
+                            _unitOfWork.Rollback();
+                            _logger.LogError(ex, $"Delete PO Error: {ex.Message}");
+                            throw;
+                        }
+
+                        break;
+                    }
+                // - Delete PO Header and Detail if status is 01: Draft
+                case PurchaseOrder.StatusFlag.Draft:
+                    {
+                        // [SE-131]
+                        // - If PO Header Status is 01: Draft. All PO Details status should be 01: Draft 
+                        if (poDetails.Any(x => x.status_flag != PurchaseOrder.StatusFlag.Draft))
+                        {
+                            throw new BadRequestException(ErrorCodes.ValidationError,
+                                ErrorMessages.CannotDeletePOStatusDraft);
+                        }
+
+                        try
+                        {
+                            _unitOfWork.BeginTransaction();
+                            await _poHeaderRepository.DeleteAsync(poHeader);
+                            await _poDetailRepository.DeleteRangeAsync(poDetails);
+                            await _unitOfWork.SaveChangesAsync();
+                            _unitOfWork.Commit();
+                        }
+                        catch (Exception ex)
+                        {
+                            _unitOfWork.Rollback();
+                            _logger.LogError(ex, $"Delete PO Error: {ex.Message}");
+                            throw;
+                        }
+
+                        break;
+                    }
+            }
+        }
+
+        public async Task UpdatePoHeaderStatusToNewByPODetailStatus(string userId, IUnitOfWork unitOfWork, int poHeaderId)
+        {
+            var anyDetailWithStatusNotNew = await _poDetailRepository.IsPoDetailWithStatusNotNew(poHeaderId);
+            if (!anyDetailWithStatusNotNew)
+            {
+                var poHeader = await _poHeaderRepository.GetByIdAsync(x => x.id == poHeaderId);
+                poHeader.status_flag = PurchaseOrder.StatusFlag.New;
+                poHeader.last_modified_by = userId;
+                poHeader.last_modified_on = DateTime.Now;
+                await _poHeaderRepository.UpdateAsync(poHeader);
+                await unitOfWork.SaveChangesAsync();
+            }
+        }
+
+        public async Task ClosePoAsync(string userId, int poHeaderId)
+        {
+            var poHeader = await _poHeaderRepository.GetByIdAsync(x => x.id == poHeaderId);
+            if (poHeader == null)
+            {
+                throw new NotFoundException(ErrorCodes.PurchaseOrderNotFound,
+                    string.Format(ErrorMessages.PurchaseOrderNotFound, nameof(POHeader.id), poHeaderId));
+            }
+
+            // - PO Header status must not be 01: Draft
+            if (poHeader.status_flag == PurchaseOrder.StatusFlag.Draft)
+            {
+                throw new BadRequestException(ErrorCodes.ValidationError, ErrorMessages.PurchaseOrderCanNotCloseByStatus, poHeaderId);
+            }
+
+            // - Update PO Header and Detail to status 30: Closed
+            poHeader.status_flag = PurchaseOrder.StatusFlag.Closed;
+            poHeader.last_modified_by = userId;
+            poHeader.last_modified_on = DateTime.Now;
+
+            var poDetails = await GetPoDetailByPoHeaderId(poHeaderId);
+            foreach (var poDetail in poDetails)
+            {
+                poDetail.status_flag = PurchaseOrder.StatusFlag.Closed;
+                poDetail.last_modified_by = userId;
+                poDetail.last_modified_on = DateTime.Now;
+            }
+
+            try
+            {
+                _unitOfWork.BeginTransaction();
+                await _poHeaderRepository.UpdateAsync(poHeader);
+                await _poDetailRepository.UpdateRangeAsync(poDetails);
+                await _unitOfWork.SaveChangesAsync();
+                _unitOfWork.Commit();
+            }
+            catch (Exception ex)
+            {
+                _unitOfWork.Rollback();
+                _logger.LogError(ex, $"Close PO Error: {ex.Message}");
+                throw;
+            }
+        }
+
+        public async Task ClosePoLineAsync(string userId, DeletePoLineRequestDto request)
+        {
+            var poHeader = await _poHeaderRepository.GetByIdAsync(x => x.id == request.PoHeaderId);
+            if (poHeader == null)
+            {
+                throw new NotFoundException(ErrorCodes.PurchaseOrderNotFound,
+                    string.Format(ErrorMessages.PurchaseOrderNotFound, nameof(POHeader.id), request.PoHeaderId));
+            }
+
+            var allPoDetailClosed = false;
+            var poDetails = await GetPoDetailByPoHeaderId(request.PoHeaderId);
+
+            // - Update PO Detail to status 30: Closed
+            var poDetailToUpdate = new List<PODetail>();
+            foreach (var poDetailId in request.PoDetailIDs)
+            {
+                var poDetail = poDetails.Find(x => x.id == poDetailId);
+                if (poDetail == null)
+                {
+                    _logger.LogError($"[ClosePoLine]: PO Detail {poDetailId} not found.");
+                    continue;
+                }
+
+                poDetail.status_flag = PurchaseOrder.StatusFlag.Closed;
+                poDetail.last_modified_by = userId;
+                poDetail.last_modified_on = DateTime.Now;
+
+                poDetailToUpdate.Add(poDetail);
+            }
+
+            // - If all PO Detail Line is either 30 or 90, update PO Header to 30:Closed
+            if (poDetails.All(x => x.status_flag == PurchaseOrder.StatusFlag.Closed))
+            {
+                poHeader.status_flag = PurchaseOrder.StatusFlag.Closed;
+                poHeader.last_modified_by = userId;
+                poHeader.last_modified_on = DateTime.Now;
+                allPoDetailClosed = true;
+            }
+
+            try
+            {
+                _unitOfWork.BeginTransaction();
+                if (poDetailToUpdate.Count > 0)
+                {
+                    await _poDetailRepository.UpdateRangeAsync(poDetailToUpdate);
+                }
+
+                if (allPoDetailClosed)
+                {
+                    await _poHeaderRepository.UpdateAsync(poHeader);
+                }
+
+                await _unitOfWork.SaveChangesAsync();
+                _unitOfWork.Commit();
+            }
+            catch (Exception ex)
+            {
+                _unitOfWork.Rollback();
+                _logger.LogError(ex, $"Close PO Line Error: {ex.Message}");
+                throw;
+            }
+        }
+
+        #region Private method
+        private async Task<List<POFile>> GetPoFileAsync(int poHeaderId)
+        {
+            var poFile = await _poFileRepository.Find(x => x.po_header_id == poHeaderId);
+            return poFile.ToList();
+        }
+
+        private async Task ValidateFileUpload(string[] fileNames)
+        {
+            var duplicateFileName = fileNames
+                .GroupBy(fileName => fileName)
+                .Where(x => x.Count() > 1)
+                .Select(x => x.Key)
+                .ToArray();
+
+            if (duplicateFileName.Length > 0)
+            {
+                throw new BadRequestException(ErrorCodes.FileNameDuplicated, ErrorMessages.FileNameDuplicated,
+                    duplicateFileName);
+            }
+
+            // validate duplicate item-name in database
+            var fileNameAlreadyExistedInDatabase = await _fileTrackingRepository.ValidateFileNameInDatabase(fileNames);
+            if (fileNameAlreadyExistedInDatabase.Length > 0)
+            {
+                throw new BadRequestException(ErrorCodes.FileNameDuplicated, ErrorMessages.FileNameDuplicated,
+                    fileNameAlreadyExistedInDatabase);
+            }
+        }
+
+        /// <summary>
+        /// Calculate Amount and Discount
+        /// </summary>
+        /// <param name="poHeader"></param>
+        /// <param name="poDetails"></param>
+        private void CalculateAmountAndDiscount(POHeader poHeader, List<PODetail> poDetails)
+        {
+            // - total_amt_base is calculated by sum of all line
+            // (PODetail.qty * PODetail.unit_cost) - sum of all line (line_discount) - POHeader.order_discount
+            var orderDiscount = poHeader.order_discount ?? 0;
+            var totalAmtBase = poDetails.Sum(itemDetail =>
+            {
+                if (itemDetail.qty == 0 ||
+                    itemDetail.unit_cost == 0 ||
+                    itemDetail.status_flag.Equals(PurchaseOrder.StatusFlag.Cancelled))
+                {
+                    return 0;
+                }
+
+                var lineTotal = (itemDetail.unit_cost - (itemDetail.unit_discount ?? 0)) * itemDetail.qty;
+
+                return lineTotal;
+            });
+
+            // Total Line Discount is calculated by Sum of each PO Detail discount which is (PODetail.unit_cost - PODetail.unit_discount) * qty 
+            poHeader.total_line_discount = totalAmtBase;
+            totalAmtBase -= orderDiscount;
+
+            // https://slsbearings.atlassian.net/browse/SE-95
+            // - total_amt_foreign =  is calculated by sum of all line (PODetail.qty * PODetail.unit_cost) - sum of all line
+            // - total_amt_base = total_foreign_base * exchange_rate
+            poHeader.total_amt_base = totalAmtBase * (poHeader.exchange_rate == 0 ? 1 : poHeader.exchange_rate);
+
+            // Only calculate total_amt_foreign if base_currency_id and po_currency_id is different
+            if (poHeader.base_currency_id != poHeader.po_currency_id)
+            {
+                // - total_amt_foreign = total_amt_base * exchange_rate
+                // SE-67: Use Foreign currency as the denominator
+                // base_currency/foreign_currency = exchange_rate ==> foreign = base/rate
+                //poHeader.total_amt_base = poHeader.foreign_currency / poHeader.exchange_rate;
+
+                poHeader.total_amt_foreign = totalAmtBase;
+            }
+        }
+
+        private async Task<PoDetailResponseDto> GetPurchaseOrderInfo(POHeader poHeader)
+        {
+            var result = new PoDetailResponseDto
+            {
+                po_header = new PoHeaderResponse(),
+                po_detail = [],
+                po_file = []
+            };
+
+            var poDetail = _poDetailRepository.GetPoDetailByHeaderIdAsync(poHeader.id);
+            var poHeaderResponse = _mapper.Map<PoHeaderResponse>(poHeader);
+            var poDetailResponse = _mapper.Map<List<PoDetailResponse>>(poDetail);
+
+            #region Collect Ids
+            var supplierIds = new List<int>
+            {
+                poHeader.supplier_id,
+                poHeader.intermediary_supplier_id
+            };
+
+            var secondarySupplierIds = new List<int>
+            {
+                poHeader.secondary_supplier_id ?? 0
+
+            };
+
+            var siteIds = new List<int>
+            {
+                poHeader.ship_to_site_id ?? 0,
+                poHeader.self_collect_site_id ?? 0
+            };
+
+            var portIds = new List<int>
+            {
+                poHeader.port_of_discharge_id ?? 0
+            };
+
+            var currencyIds = new List<int>
+            {
+                poHeader.base_currency_id,
+                poHeader.po_currency_id
+            };
+
+            var agentIds = new List<int>
+            {
+                poHeader.forwarder_agent_id ?? 0
+            };
+
+            var branchPlantIds = new List<int>
+            {
+                poHeader.branch_plant_id,
+                poHeader.ship_to_branch_plant_id ?? 0
+            };
+
+            var companyByBranchPlant =
+                await _branchPlantRepository.GetCompanyIdsByBranchPlantId(poHeader.branch_plant_id);
+            var companyIds = new List<int>
+            {
+                companyByBranchPlant ?? 0
+            };
+
+            var itemIds = new List<int>();
+            var supplierItemMappingIds = new List<int>();
+
+            if (poDetail.Count > 0)
+            {
+                itemIds = poDetail.Where(x => x.item_id != 0)
+                    .Select(x => x.item_id).Distinct().ToList();
+                supplierItemMappingIds = poDetail.Where(x => x.supplier_item_mapping_id != 0)
+                    .Select(x => x.supplier_item_mapping_id).Distinct().ToList();
+
+                var shipToBranchPlantIDs = poDetail.Where(x => x.ship_to_branch_plant_id != 0)
+                    .Select(x => x.ship_to_branch_plant_id).Distinct().ToList();
+
+                if (shipToBranchPlantIDs.Count > 0)
+                {
+                    branchPlantIds.AddRange(shipToBranchPlantIDs);
+                }
+
+                var secondarySupplierInDetailIDs = poDetail.Where(x => x.secondary_supplier_id != 0)
+                    .Select(x => x.secondary_supplier_id).Distinct().ToList();
+
+                if (secondarySupplierInDetailIDs.Count > 0)
+                {
+                    secondarySupplierIds.AddRange(secondarySupplierInDetailIDs);
+                }
+            }
+
+            #endregion
+
+            #region Prepare Data
+
+            var allDictionaries = await _dataRetrievalService.FetchAllDictionariesForGetDetailAsync(
+                supplierIds: supplierIds,
+                secondarySupplierIds: secondarySupplierIds,
+                siteIds: siteIds,
+                portIds: portIds,
+                currencyIds: currencyIds,
+                agentIds: agentIds,
+                branchPlantIds: branchPlantIds,
+                companyIds: companyIds,
+                itemIds: itemIds,
+                supplierItemMappingIds: supplierItemMappingIds
+            );
+
+            #endregion
+
+            // Binding value
+
+            // "po_header" : 
+            // {
+            // "id" : "value", 
+            // "po_no" : "value", 
+            // "status_flag" : "value", 
+            // "po_type" : "value", 
+            // "po_date" : "value", 
+
+            if (allDictionaries.TryGetValue(DictionaryType.BranchPlant, out var dicBranchPlantHeader))
+            {
+                // "branch_plant_no" : "value", 
+                // "branch_plant_name" : "value", 
+                if (dicBranchPlantHeader.TryGetValue(poHeader.branch_plant_id, out var issuingBranchPlant))
+                {
+                    poHeaderResponse.branch_plant_id = poHeader.branch_plant_id;
+                    poHeaderResponse.branch_plant_no = issuingBranchPlant[(int)BranchPlantFields.BranchPlantNo];
+                    poHeaderResponse.branch_plant_name =
+                        issuingBranchPlant[(int)BranchPlantFields.BranchPlantName];
+                }
+                else
+                {
+                    poHeaderResponse.branch_plant_id = null;
+                }
+
+                // "ship_to_branch_plant_no" : "value",
+                // "ship_to_branch_plant_name" : "value",
+                if (dicBranchPlantHeader.TryGetValue(poHeader.ship_to_branch_plant_id ?? 0, out var shipToBranchPlant))
+                {
+                    poHeaderResponse.ship_to_branch_plant_id = poHeader.ship_to_branch_plant_id;
+                    poHeaderResponse.ship_to_branch_plant_no = shipToBranchPlant[(int)BranchPlantFields.BranchPlantNo];
+                    poHeaderResponse.ship_to_branch_plant_name = shipToBranchPlant[(int)BranchPlantFields.BranchPlantName];
+                }
+                else
+                {
+                    poHeaderResponse.ship_to_branch_plant_id = null;
+                }
+            }
+
+            // company
+            if (allDictionaries.TryGetValue(DictionaryType.Company, out var dicCompany))
+            {
+                if (dicCompany.TryGetValue(poHeader.branch_plant_id, out var company))
+                {
+                    poHeaderResponse.company_id = poHeader.branch_plant_id;
+                    poHeaderResponse.company_no = company[(int)CompanyFields.CompanyNo];
+                    poHeaderResponse.company_name = company[(int)CompanyFields.CompanyName];
+                }
+                else
+                {
+                    poHeaderResponse.company_id = null;
+                }
+            }
+
+            if (allDictionaries.TryGetValue(DictionaryType.Supplier, out var dicSupplier))
+            {
+                // "supplier_no" : "value",
+                // "supplier_name" : "value",
+                if (dicSupplier.TryGetValue(poHeader.supplier_id, out var supplier))
+                {
+                    poHeaderResponse.supplier_id = poHeader.supplier_id;
+                    poHeaderResponse.supplier_no = supplier[(int)SupplierFields.SupplierNo];
+                    poHeaderResponse.supplier_name = supplier[(int)SupplierFields.SupplierName];
+                }
+                else
+                {
+                    poHeaderResponse.supplier_id = null;
+                }
+
+                // "intermediary_supplier_no" : "value",
+                // "intermediary_supplier_name" : "value",
+                if (dicSupplier.TryGetValue(poHeader.intermediary_supplier_id, out var intermediarySupplier))
+                {
+                    poHeaderResponse.intermediary_supplier_id = poHeader.intermediary_supplier_id;
+                    poHeaderResponse.intermediary_supplier_no = intermediarySupplier[(int)SupplierFields.SupplierNo];
+                    poHeaderResponse.intermediary_supplier_name = intermediarySupplier[(int)SupplierFields.SupplierName];
+                }
+                else
+                {
+                    poHeaderResponse.intermediary_supplier_id = null;
+                }
+            }
+
+            if (allDictionaries.TryGetValue(DictionaryType.SecondarySupplier, out var dicSecondarySupplier))
+            {
+                // "secondary_supplier_no" : "value",
+                // "secondary_supplier_name" : "value",
+                if (dicSecondarySupplier.TryGetValue(poHeader.secondary_supplier_id ?? 0, out var secondarySupplierHeader))
+                {
+                    poHeaderResponse.secondary_supplier_id = poHeader.secondary_supplier_id;
+                    poHeaderResponse.secondary_supplier_no = secondarySupplierHeader[(int)SupplierFields.SupplierNo];
+                    poHeaderResponse.secondary_supplier_name = secondarySupplierHeader[(int)SupplierFields.SupplierName];
+                }
+                else
+                {
+                    poHeaderResponse.secondary_supplier_id = null;
+                }
+            }
+
+            if (allDictionaries.TryGetValue(DictionaryType.Site, out var dicSite))
+            {
+                // "ship_to_site_no" : "value",
+                // "ship_to_site_name" : "value",
+                if (dicSite.TryGetValue(poHeader.ship_to_site_id ?? 0, out var shipToSite))
+                {
+                    poHeaderResponse.ship_to_site_id = poHeader.ship_to_site_id;
+                    poHeaderResponse.ship_to_site_no = shipToSite[(int)SiteFields.SiteNo];
+                    poHeaderResponse.ship_to_site_name = shipToSite[(int)SiteFields.SiteName];
+                }
+                else
+                {
+                    poHeaderResponse.ship_to_site_id = null;
+                }
+
+                // "self_collect_site_no" : "value",
+                // "self_collect_site_name" : "value",
+                if (dicSite.TryGetValue(poHeader.self_collect_site_id ?? 0, out var selfCollectSite))
+                {
+                    poHeaderResponse.self_collect_site_id = poHeader.self_collect_site_id;
+                    poHeaderResponse.self_collect_site_no = selfCollectSite[(int)SiteFields.SiteNo];
+                    poHeaderResponse.self_collect_site_name = selfCollectSite[(int)SiteFields.SiteName];
+                }
+                else
+                {
+                    poHeaderResponse.self_collect_site_id = null;
+                }
+            }
+
+            // "forwarder_agent_no" : "value",
+            // "forwarder_agent_name" : "value",
+            if (allDictionaries.TryGetValue(DictionaryType.Agent, out var dicForwarder) &&
+                dicForwarder.TryGetValue(poHeader.forwarder_agent_id ?? 0, out var forwarder))
+            {
+                poHeaderResponse.forwarder_agent_id = poHeader.forwarder_agent_id;
+                poHeaderResponse.forwarder_agent_no = forwarder[(int)AgentFields.AgentNo];
+                poHeaderResponse.forwarder_agent_name = forwarder[(int)AgentFields.AgentName];
+            }
+            else
+            {
+                poHeaderResponse.forwarder_agent_id = null;
+            }
+
+            // "sales_order_no" : "value", // TODO: Add sales order no later
+            // "payment_term" : "value", 
+
+            if (allDictionaries.TryGetValue(DictionaryType.Currency, out var dicCurrency))
+            {
+                // "base_currency" : "value", 
+                if (dicCurrency.TryGetValue(poHeader.base_currency_id, out var baseCurrency))
+                {
+                    poHeaderResponse.base_currency_id = poHeader.base_currency_id;
+                    poHeaderResponse.base_currency = baseCurrency[(int)CurrencyFields.Currency];
+                }
+                else
+                {
+                    poHeaderResponse.base_currency_id = null;
+                }
+
+                // "po_currency" : "value", 
+                if (dicCurrency.TryGetValue(poHeader.po_currency_id, out var poCurrency))
+                {
+                    poHeaderResponse.po_currency_id = poHeader.po_currency_id;
+                    poHeaderResponse.po_currency = poCurrency[(int)CurrencyFields.Currency];
+                }
+                else
+                {
+                    poHeaderResponse.po_currency_id = null;
+                }
+            }
+
+            // "exchange_rate" : "value",
+            // "cost_rule" : "value", 
+            // "urgency_code" : "value", 
+            // "order_discount" : "value", 
+            // "taken_by" : "value", 
+            // "internal_remarks" : "value", 
+            // "freight_method" : "value", 
+
+            // "port_of_discharge_no" : "value",
+            // "port_of_discharge_name" : "value",
+            if (allDictionaries.TryGetValue(DictionaryType.Port, out var dicPortOfDischarge) &&
+                dicPortOfDischarge.TryGetValue(poHeader.port_of_discharge_id ?? 0, out var portOfDischarge))
+            {
+                poHeaderResponse.port_of_discharge_id = poHeader.port_of_discharge_id;
+                poHeaderResponse.port_of_discharge_no = portOfDischarge[(int)PortFields.PortNo];
+                poHeaderResponse.port_of_discharge_name = portOfDischarge[(int)PortFields.PortName];
+            }
+            else
+            {
+                poHeaderResponse.port_of_discharge_id = null;
+            }
+
+            // "send_method" : "value", 
+            // "quotation_reference" : "value", 
+            // "supplier_acknowledgement_no" : "value", 
+            // "supplier_marking_reference" : "value", 
+            // "notes_to_supplier" : "value", 
+            // "requested_date" : "value", 
+            // "quoted_ex_fac_date_earliest" : "value", 
+            // "quoted_ex_fac_date_latest" : "value", 
+            // "ack_ex_fac_date" : "value", 
+            // "forecast_ex_wh_date" : "value", 
+            // "collection_date" : "value", 
+            // "created_on" : "value",
+            // "created_by" : "value",
+            // "last_modified_on" : "value",
+            // "last_modified_by" : "value"     
+            // }
+
+            // "po_detail" :
+            // [
+            //    {
+            foreach (var detail in poDetail)
+            {
+                var responseItem = poDetailResponse.Find(x => x.detail_id == detail.id);
+                if (responseItem is null)
+                {
+                    continue;
+                }
+
+                // "detail_id" : "value",
+                // "line_no" : "value",
+                // "status_flag" : "value",
+
+                // "item_no" : "value",
+                // "description_1" : "value",
+                // "description_2" : "value",
+                // "primary_uom" : "value",
+                // "secondary_uom" : "value",
+                if (allDictionaries.TryGetValue(DictionaryType.Item, out var dicItem) &&
+                    dicItem.TryGetValue(detail.item_id, out var item))
+                {
+                    responseItem.item_id = detail.item_id;
+                    responseItem.item_no = item[(int)ItemFields.ItemNo];
+                    responseItem.description_1 = item[(int)ItemFields.Description1];
+                    responseItem.description_2 = item[(int)ItemFields.Description2];
+                    responseItem.primary_uom = item[(int)ItemFields.PrimaryUom];
+                    responseItem.secondary_uom = item[(int)ItemFields.SecondaryUom];
+                }
+                else
+                {
+                    responseItem.item_id = null;
+                }
+
+                // "po_item_description" : "value",
+                // "qty" : "value",
+                // "uom" : "value",
+
+                // "supplier_part_no" : "value",
+                // "supplier_material_code" : "value",
+                // "supplier_material_description" : "value",
+                if (allDictionaries.TryGetValue(DictionaryType.SupplierItemMapping, out var dicSupplierItemMapping) &&
+                    dicSupplierItemMapping.TryGetValue(detail.supplier_item_mapping_id, out var supplierItemMapping))
+                {
+                    responseItem.supplier_item_mapping_id = detail.supplier_item_mapping_id;
+                    responseItem.supplier_part_no = supplierItemMapping[(int)SupplierItemMappingFields.SupplierPartNo];
+                    responseItem.supplier_material_code =
+                        supplierItemMapping[(int)SupplierItemMappingFields.SupplierMaterialCode];
+                    responseItem.supplier_material_description =
+                        supplierItemMapping[(int)SupplierItemMappingFields.SupplierMaterialDescription];
+                }
+                else
+                {
+                    responseItem.supplier_item_mapping_id = null;
+                }
+
+                // "ship_to_branch_plant_no" : "value",
+                // "ship_to_branch_plant_name" : "value",
+                if (allDictionaries.TryGetValue(DictionaryType.BranchPlant, out var dicShipToBp) &&
+                    dicShipToBp.TryGetValue(detail.ship_to_branch_plant_id, out var shipToBp))
+                {
+                    responseItem.ship_to_branch_plant_id = detail.ship_to_branch_plant_id;
+                    responseItem.ship_to_branch_plant_no = shipToBp[(int)BranchPlantFields.BranchPlantNo];
+                    responseItem.ship_to_branch_plant_name = shipToBp[(int)BranchPlantFields.BranchPlantName];
+                }
+                else
+                {
+                    responseItem.ship_to_branch_plant_id = null;
+                }
+
+                // "unit_cost" : "value",
+                // "line_discount" : "value",
+
+                // "secondary_supplier_no" : "value",
+                // "secondary_supplier_name" : "value",
+                if (allDictionaries.TryGetValue(DictionaryType.SecondarySupplier, out var dicSecondarySupplierDetail) &&
+                    dicSecondarySupplierDetail.TryGetValue(detail.secondary_supplier_id,
+                        out var secondarySupplierDetail))
+                {
+                    responseItem.secondary_supplier_id = detail.secondary_supplier_id;
+                    responseItem.secondary_supplier_no = secondarySupplierDetail[(int)SupplierFields.SupplierNo];
+                    responseItem.secondary_supplier_name = secondarySupplierDetail[(int)SupplierFields.SupplierName];
+                }
+                else
+                {
+                    responseItem.secondary_supplier_id = null;
+                }
+
+                // "supplier_acknowledgement_no" : "value",
+                // "instruction_to_supplier" : "value",
+                // "internal_reference" : "value",
+                // "notes_to_warehouse" : "value",
+                // "requested_date" : "value", 
+                // "quoted_ex_fac_date_earliest" : "value", 
+                // "quoted_ex_fac_date_latest" : "value", 
+                // "ack_ex_fac_date" : "value", 
+                // "forecast_ex_wh_date" : "value", 
+                // "collection_date" : "value", 
+                // "created_on" : "value",
+                // "created_by" : "value",
+                // "last_modified_on" : "value",
+                // "last_modified_by" : "value"
+            }
+            //    }
+            // ]
+
+            result.po_header = poHeaderResponse;
+            result.po_header.port_of_discharge_country_id = await _portRepository.GetPortCountryIdAsync(poHeader.port_of_discharge_id);
+            result.po_detail = poDetailResponse;
+            result.po_file = _mapper.Map<List<PoFileResponse>>(await _poFileRepository.GetFileInfoAsync(poHeader.id));
+            return result;
+        }
+
+        private async Task ValidatePoRequest(List<ValidatePORequest> request)
+        {
+            // 'Header
+            // - business_unit_id exists in BusinessUnit table with status flag of E
+            //var companyIds = request.Where(x => x.po_header.company_id > 0)
+            //    .Select(x => x.po_header.company_id!.Value).Distinct().ToHashSet();
+            //var companyExisted = await _companyRepository.GetCompanyAvailableAsync(companyIds);
+
+            //var invalidCompanyIds = companyIds.Except(companyExisted).ToArray();
+
+            //if (invalidCompanyIds.Length > 0)
+            //{
+            //    throw new BadRequestException(string.Format(ErrorMessages.InvalidDataFromRequest,
+            //        nameof(POHeader.company_id), string.Join(", ", invalidCompanyIds),
+            //        nameof(Company), nameof(DomainConstant.StatusFlag.Enabled)));
+            //}
+
+            // - issuing_branch_plant_id exisits in BranchPlant table with status flag of E
+            // - Header & Detail: ship_to_branch_plant_id exists in BranchPlant table with status flag of E
+            var issuingBranchPlantIds = request.Where(x => x.po_header.issuing_branch_plant_id > 0)
+                .Select(x => x.po_header.issuing_branch_plant_id).Distinct().ToHashSet();
+            var headerShipToBranchPlantIds = request.Where(x => x.po_header.ship_to_branch_plant_id.HasValue)
+                .Select(x => x.po_header.ship_to_branch_plant_id!.Value).Distinct().ToHashSet();
+            var detailShipToBranchPlantIds = request.SelectMany(x => x.po_detail)
+                .Where(x => x.ship_to_branch_plant_id.HasValue)
+                .Select(x => x.ship_to_branch_plant_id!.Value).Distinct().ToHashSet();
+
+            var branchPlantIds = issuingBranchPlantIds.Union(headerShipToBranchPlantIds).Union(detailShipToBranchPlantIds).ToHashSet();
+            var branchPlantExisted = await _branchPlantRepository.GetBranchPlantAvailable(branchPlantIds);
+
+            var invalidIssuingBranchPlantIds = issuingBranchPlantIds.Except(branchPlantExisted).ToArray();
+            if (invalidIssuingBranchPlantIds.Length > 0)
+            {
+                throw new BadRequestException(string.Format(ErrorMessages.InvalidDataFromRequest,
+                    nameof(POHeader.branch_plant_id), string.Join(", ", invalidIssuingBranchPlantIds),
+                    nameof(BranchPlant), nameof(DomainConstant.StatusFlag.Enabled)));
+            }
+
+            var invalidHeaderShipToBranchPlantIds = headerShipToBranchPlantIds.Except(branchPlantExisted).ToArray();
+            if (invalidHeaderShipToBranchPlantIds.Length > 0)
+            {
+                throw new BadRequestException(string.Format(ErrorMessages.InvalidDataFromRequest,
+                    nameof(POHeader.ship_to_branch_plant_id), string.Join(", ", invalidHeaderShipToBranchPlantIds),
+                    nameof(BranchPlant), nameof(DomainConstant.StatusFlag.Enabled)));
+            }
+
+            var invalidDetailShipToBranchPlantIds = detailShipToBranchPlantIds.Except(branchPlantExisted).ToArray();
+            if (invalidDetailShipToBranchPlantIds.Length > 0)
+            {
+                throw new BadRequestException(string.Format(ErrorMessages.InvalidDataFromRequest,
+                    nameof(POHeader.ship_to_branch_plant_id), string.Join(", ", invalidDetailShipToBranchPlantIds),
+                    nameof(BranchPlant), nameof(DomainConstant.StatusFlag.Enabled)));
+            }
+
+            // - supplier_id exists in Supplier table with status flag of E
+            // - intermediary_supplier_id exists in Supplier table with status flag of E 
+            // - intermediary_supplier_id is specified as intermediary_suuplier of supplier_id
+            var supplierIds = request.Where(x => x.po_header.supplier_id > 0)
+                .Select(x => x.po_header.supplier_id).Distinct().ToHashSet();
+            var intermediarySupplierIds = request.Where(x => x.po_header.intermediary_supplier_id.HasValue)
+                .Select(x => x.po_header.intermediary_supplier_id!.Value).Distinct().ToHashSet();
+            var supplierListIds = supplierIds.Union(intermediarySupplierIds).ToHashSet();
+            var supplierExisted = await _supplierRepository.GetSupplierAvailable(supplierListIds);
+
+
+            var invalidSupplierIds = supplierIds.Except(supplierExisted).ToArray();
+            if (invalidSupplierIds.Length > 0)
+            {
+                throw new BadRequestException(string.Format(ErrorMessages.InvalidDataFromRequest,
+                    nameof(POHeader.supplier_id), string.Join(", ", invalidSupplierIds),
+                    nameof(Supplier), nameof(DomainConstant.StatusFlag.Enabled)));
+            }
+
+            var invalidIntermediarySupplierIds = intermediarySupplierIds.Except(supplierExisted).ToArray();
+            if (invalidIntermediarySupplierIds.Length > 0)
+            {
+                throw new BadRequestException(string.Format(ErrorMessages.InvalidDataFromRequest,
+                    nameof(POHeader.intermediary_supplier_id), string.Join(", ", invalidIntermediarySupplierIds),
+                    nameof(Supplier), nameof(DomainConstant.StatusFlag.Enabled)));
+            }
+
+            // - Header&Detail: secondary_supplier_id is specified as secondary_supplier of supplier_id in SecondarySupplier table with status flag of E
+            var headerSecondarySupplierIds = request.Where(x => x.po_header.secondary_supplier_id.HasValue)
+                .Select(x => x.po_header.secondary_supplier_id!.Value).Distinct().ToHashSet();
+            var detailSecondarySupplierIds = request.SelectMany(x => x.po_detail)
+                .Where(x => x.secondary_supplier_id.HasValue)
+                .Select(x => x.secondary_supplier_id!.Value).Distinct().ToHashSet();
+
+            var secondarySupplierIds = headerSecondarySupplierIds.Union(detailSecondarySupplierIds).ToHashSet();
+            var secondarySupplierExisted =
+                await _supplierSecondaryRepository.GetAvailableSecondarySupplier(secondarySupplierIds);
+
+            var invalidSecondarySupplierIds = headerSecondarySupplierIds.Except(secondarySupplierExisted).ToArray();
+            if (invalidSecondarySupplierIds.Length > 0)
+            {
+                //throw new BadRequestException(string.Format(ErrorMessages.InvalidDataFromRequest,
+                //    nameof(POHeader.secondary_supplier_id), string.Join(", ", invalidSecondarySupplierIds)));
+                throw new BadRequestException(string.Format(ErrorMessages.InvalidDataFromRequest,
+                    nameof(POHeader.secondary_supplier_id), string.Join(", ", invalidSecondarySupplierIds),
+                    nameof(Supplier), nameof(DomainConstant.StatusFlag.Enabled)));
+            }
+
+            var invalidDetailSecondarySupplierIds = detailSecondarySupplierIds.Except(secondarySupplierExisted).ToArray();
+            if (invalidDetailSecondarySupplierIds.Length > 0)
+            {
+                throw new BadRequestException(string.Format(ErrorMessages.InvalidDataFromRequest,
+                    nameof(POHeader.secondary_supplier_id), string.Join(", ", invalidDetailSecondarySupplierIds),
+                    nameof(Supplier), nameof(DomainConstant.StatusFlag.Enabled)));
+            }
+
+            // - ship_to_site_id exists in Site table with status flag of E 
+            // - self_collect_site_id exists in Site table with status flag of E 
+            var shipToSiteIds = request.Where(x => x.po_header.ship_to_site_id.HasValue)
+                .Select(x => x.po_header.ship_to_site_id!.Value).Distinct().ToHashSet();
+            var selfCollectSiteIds = request.Where(x => x.po_header.self_collect_site_id.HasValue)
+                .Select(x => x.po_header.self_collect_site_id!.Value).Distinct().ToHashSet();
+
+            var siteIds = shipToSiteIds.Union(selfCollectSiteIds).ToHashSet();
+            var siteExisted = await _siteRepository.GetSiteAvailable(siteIds);
+
+            var invalidShipToSiteIds = shipToSiteIds.Except(siteExisted).ToArray();
+            if (invalidShipToSiteIds.Length > 0)
+            {
+                throw new BadRequestException(string.Format(ErrorMessages.InvalidDataFromRequest,
+                    nameof(POHeader.ship_to_site_id), string.Join(", ", invalidShipToSiteIds),
+                    nameof(Site), nameof(DomainConstant.StatusFlag.Enabled)));
+            }
+
+            var invalidSelfCollectSiteIds = selfCollectSiteIds.Except(siteExisted).ToArray();
+            if (invalidSelfCollectSiteIds.Length > 0)
+            {
+                throw new BadRequestException(string.Format(ErrorMessages.InvalidDataFromRequest,
+                    nameof(POHeader.self_collect_site_id), string.Join(", ", invalidSelfCollectSiteIds),
+                    nameof(Site), nameof(DomainConstant.StatusFlag.Enabled)));
+            }
+
+            // - forwarder_agent_id exists in Agent table with status flag of E
+            var forwarderAgentIds = request.Where(x => x.po_header.forwarder_agent_id.HasValue)
+                .Select(x => x.po_header.forwarder_agent_id!.Value).Distinct().ToHashSet();
+
+            var agentExisted = await _agentRepository.GetAvailableAgentIds(forwarderAgentIds);
+
+            var invalidForwarderAgentIds = forwarderAgentIds.Except(agentExisted).ToArray();
+            if (invalidForwarderAgentIds.Length > 0)
+            {
+                throw new BadRequestException(string.Format(ErrorMessages.InvalidDataFromRequest,
+                    nameof(CreatePoHeaderRequestDto.forwarder_agent_id), string.Join(", ", invalidForwarderAgentIds),
+                    nameof(Agent), nameof(DomainConstant.StatusFlag.Enabled)));
+            }
+
+            // - TODO: sales_order_id exists in SalesOrder table
+
+            // - base_currency_id exists in Currency table with status flag of E
+            // - po_currency_id exists in Currency table with status flag of E
+            var baseCurrencyIds = request.Where(x => x.po_header.base_currency_id > 0)
+                .Select(x => x.po_header.base_currency_id).Distinct().ToHashSet();
+            var poCurrencyIds = request.Where(x => x.po_header.po_currency_id > 0)
+                .Select(x => x.po_header.po_currency_id).Distinct().ToHashSet();
+            var currencyIds = baseCurrencyIds.Union(poCurrencyIds).ToHashSet();
+            var currencyExisted = await _currencyRepository.GetCurrencyAvailable(currencyIds);
+
+            var invalidBaseCurrencyIds = baseCurrencyIds.Except(currencyExisted).ToArray();
+            if (invalidBaseCurrencyIds.Length > 0)
+            {
+                throw new BadRequestException(string.Format(ErrorMessages.InvalidDataFromRequest,
+                    nameof(POHeader.base_currency_id), string.Join(", ", invalidBaseCurrencyIds),
+                    nameof(Currency), nameof(DomainConstant.StatusFlag.Enabled)));
+            }
+
+            var invalidPoCurrencyIds = poCurrencyIds.Except(currencyExisted).ToArray();
+            if (invalidPoCurrencyIds.Length > 0)
+            {
+                throw new BadRequestException(string.Format(ErrorMessages.InvalidDataFromRequest,
+                    nameof(POHeader.po_currency_id), string.Join(", ", invalidPoCurrencyIds),
+                    nameof(Currency), nameof(DomainConstant.StatusFlag.Enabled)));
+            }
+
+            // - port_of_discharge_id exists in Port table with status flag of E
+            var portOfDischargeIds = request.Where(x => x.po_header.port_of_discharge_id.HasValue)
+                .Select(x => x.po_header.port_of_discharge_id!.Value).Distinct().ToHashSet();
+
+            var portExisted = await _portRepository.GetPortAvailable(portOfDischargeIds);
+
+            var invalidPortOfDischargeIds = portOfDischargeIds.Except(portExisted).ToArray();
+            if (invalidPortOfDischargeIds.Length > 0)
+            {
+                throw new BadRequestException(string.Format(ErrorMessages.InvalidDataFromRequest,
+                    nameof(POHeader.port_of_discharge_id), string.Join(", ", invalidPortOfDischargeIds),
+                    nameof(Port), nameof(DomainConstant.StatusFlag.Enabled)));
+            }
+
+            foreach (var poInfoRequest in request)
+            {
+                // - Freight Method: Self Collect - Self Collect Site required
+
+                // TODO: validate based on po_type
+                //switch (poInfoRequest.po_header.po_type)
+                //{
+                //    // - PO Type: Intermediary - Intermediary Supplier, Sales Order ID required
+                //    case PurchaseOrder.Type.IntermediaryOrder:
+                //        {
+                //            if (poInfoRequest.po_header.sales_order_id == 0)
+                //            {
+                //                throw new Exception("PO Type: Intermediary - Intermediary Supplier, Sales Order ID required");
+                //            }
+                //            break;
+                //        }
+                //    // - PO Type: Direct Shipment - Sales Order ID, Ship To Customer required.
+                //    case PurchaseOrder.Type.DirectShipment:
+                //        {
+                //            if (poInfoRequest.po_header.sales_order_id == 0 || poInfoRequest.po_header.ship_to_site_id == 0)
+                //            {
+                //                throw new Exception("PO Type: Direct Shipment - Sales Order ID, Ship To Customer required.");
+                //            }
+                //            break;
+                //        }
+                //    // - PO Type: Direct from ID - Sales Order No required
+                //    case PurchaseOrder.Type.DirectFromSalesOrder:
+                //        {
+                //            if (poInfoRequest.po_header.sales_order_id == 0)
+                //            {
+                //                throw new Exception("PO Type: Direct from ID - Sales Order No required");
+                //            }
+                //            break;
+                //        }
+                //}
+
+            }
+
+            // Detail
+            // - item_id exists in Item table with status flag of E
+            var itemIds = request.SelectMany(x => x.po_detail)
+                .Where(x => x.item_id.HasValue)
+                .Select(x => x.item_id!.Value).Distinct().ToHashSet();
+
+            var itemExisted = await _itemRepository.GetItemAvailable(itemIds);
+
+            var invalidItemIds = itemIds.Except(itemExisted).ToArray();
+            if (invalidItemIds.Length > 0)
+            {
+                throw new BadRequestException(string.Format(ErrorMessages.InvalidDataFromRequest,
+                    nameof(PODetailViewModel.item_id), string.Join(", ", invalidItemIds),
+                    nameof(Item), nameof(DomainConstant.StatusFlag.Enabled)));
+            }
+
+            // - supplier_mapping_id exists in SupplierItemMapping table with status flag of E
+            var supplierMappingIds = request.SelectMany(x => x.po_detail)
+                .Where(x => x.supplier_item_mapping_id.HasValue)
+                .Select(x => x.supplier_item_mapping_id!.Value).Distinct().ToHashSet();
+
+            var supplierMappingExisted =
+                await _supplierItemMappingRepository.GetSupplierItemMappingAvailable(supplierMappingIds);
+
+            var invalidSupplierMappingIds = supplierMappingIds.Except(supplierMappingExisted).ToArray();
+            if (invalidSupplierMappingIds.Length > 0)
+            {
+                throw new BadRequestException(string.Format(ErrorMessages.InvalidDataFromRequest,
+                    nameof(PODetailViewModel.supplier_item_mapping_id), string.Join(", ", invalidSupplierMappingIds),
+                    nameof(SupplierItemMapping), nameof(DomainConstant.StatusFlag.Enabled)));
+            }
+
+            // - ship_to_branch_plant_id exists in BranchPlant table with status flag of E
+            // - secondary_supplier_id is specified as secondary_supplier of supplier_id in SecondarySupplier table with status flag of E
+
+            // - supplier_mapping_id Item ID and Supplier ID in SupplierItemMapping table matches payload supplier_id and detail item_id
+
+            // - purchasing_uom is selected item primary or secondary uom
+
+        }
+
+        private async Task<List<PagedPoResponseDto>> GetDataForFilterPo(List<PoResponse> pagedResponse)
+        {
+            //var currencyIds = new List<int>();
+            //currencyIds.AddRange(pagedResponse.Select(x => x.base_currency_id).ToList());
+            //currencyIds.AddRange(pagedResponse.Select(x => x.po_currency_id).ToList());
+
+            //var agentIds = new List<int>();
+            //agentIds.AddRange(pagedResponse.Where(x => x.forwarder_id.HasValue)
+            //    .Select(x => x.forwarder_id!.Value).ToList());
+
+            //var branchPlantIds = new List<int>();
+            //branchPlantIds.AddRange(pagedResponse.Where(x => x.ship_to_branch_plant_id.HasValue)
+            //    .Select(x => x.ship_to_branch_plant_id!.Value).ToList());
+
+            //var siteIds = new List<int>();
+            //siteIds.AddRange(pagedResponse.Where(x => x.ship_to_site_id.HasValue)
+            //    .Select(x => x.ship_to_site_id!.Value).ToList());
+            //siteIds.AddRange(pagedResponse.Where(x => x.self_collect_site_id.HasValue)
+            //    .Select(x => x.self_collect_site_id!.Value).ToList());
+
+            //var portIds = new List<int>();
+            //portIds.AddRange(pagedResponse.Where(x => x.port_of_discharge_id.HasValue)
+            //    .Select(x => x.port_of_discharge_id!.Value).ToList());
+
+            //var supplierIds = new List<int>();
+            //supplierIds.AddRange(pagedResponse.Where(x => x.intermediary_supplier_id > 0)
+            //    .Select(x => x.intermediary_supplier_id).ToList());
+
+            //var secondarySupplierIds = new List<int>();
+            //secondarySupplierIds.AddRange(pagedResponse.Where(x => x.secondary_supplier_id.HasValue)
+            //.Select(x => x.secondary_supplier_id!.Value).ToList());
+
+            //var companyIds = Enumerable.Empty<int>().ToList();
+            //var itemIds = Enumerable.Empty<int>().ToList();
+            //var supplierItemMappingIds = Enumerable.Empty<int>().ToList();
+            //var allDictionaries = await _dataRetrievalService.FetchAllDictionariesForGetDetailAsync(
+            //    supplierIds: supplierIds,
+            //    secondarySupplierIds: secondarySupplierIds,
+            //    siteIds: siteIds,
+            //    portIds: portIds,
+            //    currencyIds: currencyIds,
+            //    agentIds: agentIds,
+            //    branchPlantIds: branchPlantIds,
+            //    companyIds: companyIds,
+            //    itemIds: itemIds,
+            //    supplierItemMappingIds: supplierItemMappingIds
+            //);
+
+            //var result = new List<PagedPoResponseDto>();
+            //foreach (var page in pagedResponse)
+            //{
+            //    var item = _mapper.Map<PagedPoResponseDto>(page);
+
+            //    if (allDictionaries.TryGetValue(DictionaryType.Supplier, out var dicSupplier))
+            //    {
+            //        //intermediary_supplier_no = intermediarySupplier.supplier_no,
+            //        //intermediary_supplier_name = intermediarySupplier.supplier_name,
+            //        if (dicSupplier.TryGetValue(page.intermediary_supplier_id, out var intermediarySupplier))
+            //        {
+            //            item.intermediary_supplier_no = intermediarySupplier[(int)SupplierFields.SupplierNo];
+            //            item.intermediary_supplier_name = intermediarySupplier[(int)SupplierFields.SupplierName];
+            //        }
+            //    }
+
+            //    if (allDictionaries.TryGetValue(DictionaryType.SecondarySupplier, out var dicSecondary))
+            //    {
+            //        //secondary_supplier_no = secondarySupplier.supplier_no,
+            //        //secondary_supplier_name = secondarySupplier.supplier_name,
+            //        if (dicSecondary.TryGetValue(page.secondary_supplier_id ?? 0, out var secondarySupplier))
+            //        {
+            //            item.secondary_supplier_no = secondarySupplier[(int)SupplierFields.SupplierNo];
+            //            item.secondary_supplier_name = secondarySupplier[(int)SupplierFields.SupplierName];
+            //        }
+            //    }
+
+            //    //ship_to_branch_plant_no = shipToBranchPlant.branch_plant_no,
+            //    //ship_to_branch_plant_name = shipToBranchPlant.branch_plant_name,
+            //    if (allDictionaries.TryGetValue(DictionaryType.BranchPlant, out var dicShipToBranchPlant) &&
+            //        dicShipToBranchPlant.TryGetValue(page.ship_to_branch_plant_id ?? 0,
+            //            out var secondarySupplierDetail))
+            //    {
+            //        item.ship_to_branch_plant_no = secondarySupplierDetail[(int)BranchPlantFields.BranchPlantNo];
+            //        item.ship_to_branch_plant_name = secondarySupplierDetail[(int)BranchPlantFields.BranchPlantName];
+            //    }
+
+            //    if (allDictionaries.TryGetValue(DictionaryType.Site, out var dicSite))
+            //    {
+            //        //ship_to_site_no = shipToSite.site_no,
+            //        //ship_to_site_name = shipToSite.site_name,
+            //        if (dicSite.TryGetValue(page.ship_to_site_id ?? 0, out var shipToSite))
+            //        {
+            //            item.ship_to_site_no = shipToSite[(int)SiteFields.SiteNo];
+            //            item.ship_to_site_name = shipToSite[(int)SiteFields.SiteName];
+            //        }
+
+            //        //self_collect_site_no = selfCollectionSite.site_no,
+            //        //self_collect_site_name = selfCollectionSite.site_name,
+            //        if (dicSite.TryGetValue(page.self_collect_site_id ?? 0, out var selfCollectSite))
+            //        {
+            //            item.self_collect_site_no = selfCollectSite[(int)SiteFields.SiteNo];
+            //            item.self_collect_site_name = selfCollectSite[(int)SiteFields.SiteName];
+            //        }
+            //    }
+
+            //    //forwarder_agent_no = forwarder.agent_no,
+            //    //forwarder_agent_name = forwarder.agent_name,
+            //    if (allDictionaries.TryGetValue(DictionaryType.Agent, out var dicForwarder) &&
+            //        dicForwarder.TryGetValue(page.forwarder_id ?? 0, out var forwarder))
+            //    {
+            //        item.forwarder_agent_no = forwarder[(int)AgentFields.AgentNo];
+            //        item.forwarder_agent_name = forwarder[(int)AgentFields.AgentName];
+            //    }
+
+            //    //if (allDictionaries.TryGetValue(DictionaryType.Currency, out var dicCurrency))
+            //    //{
+            //    //    //base_currency = baseCurrency.currency,
+            //    //    if (dicCurrency.TryGetValue(page.base_currency_id, out var baseCurrency))
+            //    //    {
+            //    //        item.base_currency = baseCurrency[(int)CurrencyFields.Currency];
+            //    //    }
+
+            //    //    //po_currency = poCurrency.currency,
+            //    //    if (dicCurrency.TryGetValue(page.po_currency_id, out var poCurrency))
+            //    //    {
+            //    //        item.po_currency = poCurrency[(int)CurrencyFields.Currency];
+            //    //    }
+            //    //}
+
+            //    //port_of_discharge_no = portOfDischarge.port_no,
+            //    //port_of_discharge_name = portOfDischarge.port_name,
+            //    if (allDictionaries.TryGetValue(DictionaryType.Port, out var dicPortOfDischarge) &&
+            //        dicPortOfDischarge.TryGetValue(page.port_of_discharge_id ?? 0, out var portOfDischarge))
+            //    {
+            //        item.port_of_discharge_no = portOfDischarge[(int)PortFields.PortNo];
+            //        item.port_of_discharge_name = portOfDischarge[(int)PortFields.PortName];
+            //    }
+
+            //    result.Add(item);
+            //}
+
+
+            //return result;
+
+            return [];
+        }
+
+        private async Task<List<PODetail>> GetPoDetailByPoHeaderId(int poHeaderId)
+        {
+            var poDetails = await _poDetailRepository.Find(x => x.po_header_id == poHeaderId);
+
+            return poDetails.ToList();
+        }
+
+        private async Task<List<FileTracking>> GetFileTrackingAsync(HashSet<int> listFileTrackingIDs)
+        {
+            var fileTracking = await _fileTrackingRepository.Find(x => listFileTrackingIDs.Contains(x.id));
+            return fileTracking.ToList();
+        }
+
+        private async Task<List<Lov>> GetLovList()
+        {
+            var lov = await _lovRepository.GetByLovTypeAsync(
+            [
+                LOVs.Type.UrgencyCodes
+            ], onlyEnabled: true);
+
+            return lov.ToList();
+        }
+
+        private async Task FillDataForPagedResponseAsync(List<PagedPoResponseDto> result)
+        {
+            var lovList = await GetLovList();
+            var urgentCodes = lovList.Where(x => x.lov_type == LOVs.Type.UrgencyCodes)
+                .ToDictionary(x => x.lov_value, y => y.lov_label);
+
+            foreach (var page in result)
+            {
+                if (string.IsNullOrEmpty(page.urgency_code))
+                {
+                    continue;
+                }
+
+                if (urgentCodes.TryGetValue(page.urgency_code, out var urgentCode))
+                {
+                    page.urgency_code = urgentCode;
+                }
+            }
+        }
+        #endregion
+    }
+}

@@ -1,0 +1,10 @@
+﻿using SERP.Domain.Common;
+
+namespace SERP.Domain.Transactions.PackingLists
+{
+    public class PackingHeader : BaseModel
+    {
+        public int? asn_header_id { get; set; }
+        public int container_id { get; set; }
+    }
+}

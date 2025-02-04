@@ -1,0 +1,88 @@
+﻿using SERP.Application.Common;
+using SERP.Application.Common.Constants;
+using SERP.Application.Common.Exceptions;
+using SERP.Application.Transactions.FilesTracking.DTOs;
+using SERP.Application.Transactions.FilesTracking.Interfaces;
+using SERP.Application.Transactions.PurchaseOrders.DTOs.Request;
+using SERP.Domain.Masters.Items;
+using SERP.Domain.Transactions.FilesTracking;
+
+namespace SERP.Application.Transactions.FilesTracking.Services
+{
+    internal class FilesTrackingService : IFilesTrackingService
+    {
+        private readonly IFileTrackingRepository _fileTrackingRepository;
+
+        public FilesTrackingService(
+            IFileTrackingRepository fileTrackingRepository)
+        {
+            _fileTrackingRepository = fileTrackingRepository;
+        }
+
+        public async Task<List<FileTracking>> UploadMultipleFilesAsync(string userId, IUnitOfWork unitOfWork, List<FileTrackingRequestDto> requests)
+        {
+            var fileTrackingToInsert = new List<FileTracking>();
+
+            foreach (var item in requests)
+            {
+                var fileTracking = new FileTracking
+                {
+                    created_by = userId,
+                    file_type = item.file.ContentType,
+                    file_name = item.file.FileName,
+                    upload_source = item.upload_source,
+                    document_type = item.document_type,
+                    url_path = item.url_path,
+                    file_size = Utilities.ConvertFileLengthToMegabytes(item.file.Length),
+                };
+
+                fileTrackingToInsert.Add(fileTracking);
+            }
+
+            if (fileTrackingToInsert.Count == 0)
+            {
+                return [];
+            }
+            await _fileTrackingRepository.CreateRangeAsync(fileTrackingToInsert);
+            await unitOfWork.SaveChangesAsync();
+
+            return fileTrackingToInsert;
+        }
+        public async Task<FileTracking> UploadSingleFileAsync(string userId, IUnitOfWork unitOfWork, FileInfoRequestDto request, string uploadSource, string documentType)
+        {
+            var fileTracking = new FileTracking
+            {
+                created_by = userId,
+                file_type = request.file.ContentType,
+                file_name = request.file.FileName,
+                upload_source = uploadSource,
+                document_type = documentType,
+                url_path = request.url_path,
+                file_size = Utilities.ConvertFileLengthToMegabytes(request.file.Length),
+            };
+
+            await _fileTrackingRepository.CreateAsync(fileTracking);
+            await unitOfWork.SaveChangesAsync();
+
+            return fileTracking;
+        }
+        public async Task<List<string>> RemoveFileAsync(IUnitOfWork unitOfWork, List<int> fileIds)
+        {
+            var fileTracking = await _fileTrackingRepository.GetDictionaryAsync(x => fileIds.Contains(x.id));
+
+            if (fileTracking is null)
+            {
+                throw new NotFoundException(ErrorCodes.FileTrackingNotFound, ErrorMessages.FileTrackingNotFound);
+            }
+
+            var filePath = fileTracking.Values.Select(x => x.url_path).ToList();
+            await _fileTrackingRepository.DeleteRangeAsync(fileTracking.Values);
+            await unitOfWork.SaveChangesAsync();
+            return filePath;
+        }
+
+        #region Private method
+
+        #endregion
+    }
+}

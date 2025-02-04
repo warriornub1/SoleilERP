@@ -1,0 +1,416 @@
+{
+  "Version": 1,
+  "ManifestType": "Build",
+  "Endpoints": [
+    {
+      "Route": "Company Group.i9fugpma7o.xlsx",
+      "AssetFile": "Company Group.xlsx",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "max-age=31536000, immutable"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "9397"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"OmP1ja3cMo/k9TuA21tVFINJ9GPrnLbb9wT8tJb7Xjk=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Thu, 12 Dec 2024 09:55:26 GMT"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "fingerprint",
+          "Value": "i9fugpma7o"
+        },
+        {
+          "Name": "integrity",
+          "Value": "sha256-OmP1ja3cMo/k9TuA21tVFINJ9GPrnLbb9wT8tJb7Xjk="
+        },
+        {
+          "Name": "label",
+          "Value": "Company Group.xlsx"
+        }
+      ]
+    },
+    {
+      "Route": "Company Group.xlsx",
+      "AssetFile": "Company Group.xlsx",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "no-cache"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "9397"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"OmP1ja3cMo/k9TuA21tVFINJ9GPrnLbb9wT8tJb7Xjk=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Thu, 12 Dec 2024 09:55:26 GMT"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "integrity",
+          "Value": "sha256-OmP1ja3cMo/k9TuA21tVFINJ9GPrnLbb9wT8tJb7Xjk="
+        }
+      ]
+    },
+    {
+      "Route": "Company.uye953r2t3.xlsx",
+      "AssetFile": "Company.xlsx",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "max-age=31536000, immutable"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "9802"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"BvVy0h4POQMo2lfcsaxdeW8SpObpV21voYV8G+fWqq8=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Thu, 12 Dec 2024 09:55:26 GMT"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "fingerprint",
+          "Value": "uye953r2t3"
+        },
+        {
+          "Name": "integrity",
+          "Value": "sha256-BvVy0h4POQMo2lfcsaxdeW8SpObpV21voYV8G+fWqq8="
+        },
+        {
+          "Name": "label",
+          "Value": "Company.xlsx"
+        }
+      ]
+    },
+    {
+      "Route": "Company.xlsx",
+      "AssetFile": "Company.xlsx",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "no-cache"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "9802"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"BvVy0h4POQMo2lfcsaxdeW8SpObpV21voYV8G+fWqq8=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Thu, 12 Dec 2024 09:55:26 GMT"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "integrity",
+          "Value": "sha256-BvVy0h4POQMo2lfcsaxdeW8SpObpV21voYV8G+fWqq8="
+        }
+      ]
+    },
+    {
+      "Route": "Cost Center.uv1sts9ulu.xlsx",
+      "AssetFile": "Cost Center.xlsx",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "max-age=31536000, immutable"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "9534"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"dsqauPE5v/qDFBi2ByHQQFFruJjVlv+NtaWpZxEpKWQ=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Tue, 07 Jan 2025 07:32:07 GMT"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "fingerprint",
+          "Value": "uv1sts9ulu"
+        },
+        {
+          "Name": "integrity",
+          "Value": "sha256-dsqauPE5v/qDFBi2ByHQQFFruJjVlv+NtaWpZxEpKWQ="
+        },
+        {
+          "Name": "label",
+          "Value": "Cost Center.xlsx"
+        }
+      ]
+    },
+    {
+      "Route": "Cost Center.xlsx",
+      "AssetFile": "Cost Center.xlsx",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "no-cache"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "9534"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"dsqauPE5v/qDFBi2ByHQQFFruJjVlv+NtaWpZxEpKWQ=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Tue, 07 Jan 2025 07:32:07 GMT"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "integrity",
+          "Value": "sha256-dsqauPE5v/qDFBi2ByHQQFFruJjVlv+NtaWpZxEpKWQ="
+        }
+      ]
+    },
+    {
+      "Route": "Natural Account.7l8nsr4oqj.xlsx",
+      "AssetFile": "Natural Account.xlsx",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "max-age=31536000, immutable"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "9643"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"O7MlonmzVIREnVo7QqmiK2ySiSN1SXh0YYOlqAfsyIk=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Tue, 07 Jan 2025 07:32:07 GMT"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "fingerprint",
+          "Value": "7l8nsr4oqj"
+        },
+        {
+          "Name": "integrity",
+          "Value": "sha256-O7MlonmzVIREnVo7QqmiK2ySiSN1SXh0YYOlqAfsyIk="
+        },
+        {
+          "Name": "label",
+          "Value": "Natural Account.xlsx"
+        }
+      ]
+    },
+    {
+      "Route": "Natural Account.xlsx",
+      "AssetFile": "Natural Account.xlsx",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "no-cache"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "9643"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"O7MlonmzVIREnVo7QqmiK2ySiSN1SXh0YYOlqAfsyIk=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Tue, 07 Jan 2025 07:32:07 GMT"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "integrity",
+          "Value": "sha256-O7MlonmzVIREnVo7QqmiK2ySiSN1SXh0YYOlqAfsyIk="
+        }
+      ]
+    },
+    {
+      "Route": "Revenue Center.ox3pspjyfx.xlsx",
+      "AssetFile": "Revenue Center.xlsx",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "max-age=31536000, immutable"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "9583"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"1M8ACjbddYWjYsBc3Af5E57w22lpCVrxRNg/QiWq9P8=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Tue, 07 Jan 2025 07:32:07 GMT"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "fingerprint",
+          "Value": "ox3pspjyfx"
+        },
+        {
+          "Name": "integrity",
+          "Value": "sha256-1M8ACjbddYWjYsBc3Af5E57w22lpCVrxRNg/QiWq9P8="
+        },
+        {
+          "Name": "label",
+          "Value": "Revenue Center.xlsx"
+        }
+      ]
+    },
+    {
+      "Route": "Revenue Center.xlsx",
+      "AssetFile": "Revenue Center.xlsx",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "no-cache"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "9583"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"1M8ACjbddYWjYsBc3Af5E57w22lpCVrxRNg/QiWq9P8=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Tue, 07 Jan 2025 07:32:07 GMT"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "integrity",
+          "Value": "sha256-1M8ACjbddYWjYsBc3Af5E57w22lpCVrxRNg/QiWq9P8="
+        }
+      ]
+    }
+  ]
+}

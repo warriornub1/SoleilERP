@@ -1,0 +1,22 @@
+﻿namespace SERP.Application.Transactions.Containers.DTOs.Response
+{
+    public class ContainerDetailFileUrlDto : PagedContainerResponseDto
+    {
+        public asnResponse[] asns { get; set; } = [];
+        public inboundShipmentResponse? inbound_shipment { get; set; }
+        public inboundShipmentBlawbResponse? inbound_shipment_blawb { get; set; }
+        public List<containerFiles>? container_in_photos_url { get; set; }
+        public List<containerFiles>? container_out_photos_url { get; set; }
+        public List<containerFiles>? container_unloading_photos_url { get; set; }
+    }
+
+
+    public class containerFiles
+    {
+        public int id { get; set; }
+        public string file_name { get; set; }
+        public string file_type { get; set; }
+        public string url_path { get; set; }
+        public string container_file_type { get; set; }
+    }
+}

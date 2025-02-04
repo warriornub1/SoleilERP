@@ -1,0 +1,27 @@
+﻿using SERP.Application.Common;
+using SERP.Domain.Finance.Groups;
+using System.Linq.Expressions;
+
+namespace SERP.Application.Finance.Groups.Interfaces
+{
+    public interface IGroupRepository : IGenericRepository<Group>
+    {
+        Task<int?> GetParentId(int? id);
+        Task<Group> GetFirst(Expression<Func<Group, bool>> expression);
+        Task<IEnumerable<int>> GetParentIdList(List<int> listId);
+        Task<IEnumerable<Group>> GroupFilterPaged(DateTime? createDateFrom, DateTime? createDateTo,
+                                                                List<int>? levelList,
+                                                                List<int>? parentList, List<string>? statusList,
+                                                                string keyword, string groupType);
+        Task<Dictionary<string, Group>> GetGroupDictionary(List<string> parentGroup);
+        Task<List<Group>> GetGroupByGroupType(string groupType);
+        Task<List<Group>> GetParentGroupList(string groupType);
+        Task<List<Group>> GetGroupPage(string groupType);
+        Task<bool> GetGroup(int parentGroupId);
+        Task<IEnumerable<Group>> GetChild(int parentId, string groupType);
+        Task<IEnumerable<Group>> GetLevelFourGroup(int maxLevel, string groupType);
+        Task<Dictionary<string, int>> GetIDByParentGroupNo(List<string?> parent_group_no, string group_type);
+        Task<Dictionary<int?, int>> GetParentGroupId(List<int?> parent_group_no);
+        Task<IEnumerable<int>> GetIdWithFlag(List<int> parentGroupId, string groupType, string flag);
+    }
+}

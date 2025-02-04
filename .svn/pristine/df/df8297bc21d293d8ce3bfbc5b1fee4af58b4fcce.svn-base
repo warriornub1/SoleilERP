@@ -1,0 +1,9 @@
+﻿using SERP.Application.Common;
+using SERP.Domain.Transactions.Receiving;
+
+namespace SERP.Application.Transactions.Receiving.Interfaces
+{
+    public interface IReceivingASNRepository : IGenericRepository<ReceivingASN>
+    {
+    }
+}

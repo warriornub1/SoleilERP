@@ -1,0 +1,122 @@
+﻿using Microsoft.EntityFrameworkCore;
+using SERP.Application.Common;
+using SERP.Application.Common.Constants;
+using SERP.Application.Masters.Lovs.DTOs.Request;
+using SERP.Application.Masters.Lovs.Interfaces;
+using SERP.Domain.Masters.LOVs;
+using SERP.Infrastructure.Common;
+using SERP.Infrastructure.Common.DBContexts;
+using System.Linq.Expressions;
+
+namespace SERP.Infrastructure.Masters.Lovs
+{
+    public class LovRepository : GenericRepository<Lov>, ILovRepository
+    {
+        public LovRepository(ApplicationDbContext dbContext) : base(dbContext)
+        {
+
+        }
+
+        public async Task<IEnumerable<Lov>> GetByLovTypeAsync(List<string> lovTypes, bool onlyEnabled)
+        {
+            return await _dbContext.Lov.Where(x => lovTypes.Contains(x.lov_type) &&
+            (!onlyEnabled || x.status_flag.Equals(ApplicationConstant.StatusFlag.Enabled))).OrderBy(x => x.lov_type).ThenBy(x => x.lov_label).ToListAsync();
+        }
+
+        public async Task<IEnumerable<Lov>> LovFilterAsync(PagedFilterLovRequestDto request)
+        {
+            var pageable = PagingUtilities.GetPageable(request.Page, request.PageSize);
+            var skipRow = PagingUtilities.GetSkipRow(pageable.Page, pageable.Size);
+
+            var query = _dbContext.Lov.AsQueryable();
+
+
+            if (!string.IsNullOrEmpty(request.Keyword))
+            {
+                query = query.Where(x => (x.lov_value.Contains(request.Keyword) ||
+                                x.lov_label.Contains(request.Keyword) ||
+                                x.extended_data_1.Contains(request.Keyword) ||
+                                x.extended_data_2.Contains(request.Keyword))
+                              );
+            }
+
+            if (request.create_date_from.HasValue)
+            {
+                query = query.Where(x => (x.created_on >= request.create_date_from.Value));
+            }
+
+            if (request.create_date_to.HasValue)
+            {
+                query = query.Where(x => (x.created_on <= request.create_date_to));
+            }
+
+            if (request.lovTypeList is not null && request.lovTypeList.Count > 0)
+            {
+                query = query.Where(x => (request.lovTypeList.Contains(x.lov_type)));
+            }
+
+            if (request.statusList is not null && request.statusList.Count > 0)
+            {
+                query = query.Where(x => (request.statusList.Contains(x.status_flag)));
+            }
+
+            if (request.default_flag.HasValue)
+            {
+                query = query.Where(x => request.default_flag == x.default_flag);
+            }
+
+            return await query.ToListAsync();
+        }
+
+        public async Task<List<string>> FindLovRecords(List<(string, bool)> requests)
+        {
+            var query = _dbContext.Lov.AsQueryable();
+
+            foreach (var request in requests)
+            {
+                var lovType = request.Item1;
+                var defaultFlag = request.Item2;
+
+                query = query.Where(x => x.lov_type == lovType && x.default_flag == defaultFlag);
+            }
+
+            return await query
+                .Select(x => x.lov_type)
+                .ToListAsync();
+        }
+
+        public async Task<List<string>> FindLovRecordsWithID(List<(string, bool, int)> requests)
+        {
+            var query = _dbContext.Lov.AsQueryable();
+
+            foreach (var request in requests)
+            {
+                var lovType = request.Item1;
+                var defaultFlag = request.Item2;
+                var id = request.Item3;
+
+                query = query.Where(x => x.lov_type == lovType && x.default_flag == defaultFlag
+                    && x.id != id);
+            }
+
+            return await query
+                .Select(x => x.lov_type)
+                .ToListAsync();
+        }
+
+        public async Task<Lov> GetFirst(Expression<Func<Lov, bool>> expression)
+        {
+            return await _dbContext.Lov.Where(expression)
+                                         .FirstOrDefaultAsync();
+        }
+
+        public async Task<HashSet<string>> FindNaturalAccountType(List<string> naturalAccount)
+        {
+            return (await _dbContext.Lov.Where(x => naturalAccount.Contains(x.lov_type))
+                                        .Select(x => x.lov_type)                        
+                                        .ToListAsync())
+                                        .ToHashSet();
+        }
+
+    }
+}

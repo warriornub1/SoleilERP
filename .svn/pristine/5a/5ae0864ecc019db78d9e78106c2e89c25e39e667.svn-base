@@ -1,0 +1,10 @@
+﻿using SERP.Domain.Common;
+
+namespace SERP.Domain.Transactions.Receiving
+{
+    public class ReceivingASN : BaseModel
+    {
+        public int receiving_header_id { get; set; }
+        public int asn_header_id { get; set; }
+    }
+}

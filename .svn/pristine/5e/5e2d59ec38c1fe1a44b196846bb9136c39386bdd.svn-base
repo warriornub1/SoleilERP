@@ -1,0 +1,953 @@
+﻿using AutoMapper;
+using Microsoft.Extensions.Logging;
+using SERP.Application.Common;
+using SERP.Application.Common.Constants;
+using SERP.Application.Common.Exceptions;
+using SERP.Application.Common.Services;
+using SERP.Application.Masters.Agents.Interfaces;
+using SERP.Application.Masters.BranchPlants.Interfaces;
+using SERP.Application.Masters.Ports.Interfaces;
+using SERP.Application.Masters.Suppliers.Interfaces;
+using SERP.Application.Transactions.AdvancedShipmentNotices.Interfaces;
+using SERP.Application.Transactions.Containers.Interfaces;
+using SERP.Application.Transactions.FilesTracking.Interfaces;
+using SERP.Application.Transactions.InboundShipments.DTOs.Request;
+using SERP.Application.Transactions.InboundShipments.DTOs.Response;
+using SERP.Application.Transactions.InboundShipments.Interfaces;
+using SERP.Application.Transactions.PurchaseOrders.DTOs.Request;
+using SERP.Application.Transactions.SequencesTracking.Interfaces;
+using SERP.Domain.Common.Constants;
+using SERP.Domain.Common.Enums;
+using SERP.Domain.Common.Model;
+using SERP.Domain.Masters.Agents;
+using SERP.Domain.Masters.BranchPlants;
+using SERP.Domain.Masters.Items;
+using SERP.Domain.Masters.Ports;
+using SERP.Domain.Masters.Suppliers;
+using SERP.Domain.Transactions.AdvancedShipmentNotices;
+using SERP.Domain.Transactions.Containers;
+using SERP.Domain.Transactions.FilesTracking;
+using SERP.Domain.Transactions.InboundShipments;
+using SERP.Domain.Transactions.InboundShipments.Model;
+using SERP.Domain.Transactions.PurchaseOrders;
+using static SERP.Domain.Common.Constants.DomainConstant;
+
+namespace SERP.Application.Transactions.InboundShipments.Services
+{
+    internal class InboundShipmentService : IInboundShipmentService
+    {
+        private readonly IAgentRepository _agentRepository;
+        private readonly IASNHeaderRepository _asnHeaderRepository;
+        private readonly IContainerRepository _containerRepository;
+        private readonly IDataRetrievalService _dataRetrievalService;
+        private readonly IFileTrackingRepository _fileTrackingRepository;
+        private readonly IPortRepository _portRepository;
+        private readonly IMapper _mapper;
+        private readonly ILogger<InboundShipmentService> _logger;
+        private readonly IInboundShipmentRepository _inboundShipmentRepository;
+        private readonly IInboundShipmentBLAWBRepository _inboundShipmentBlAwbRepository;
+        private readonly IInboundShipmentFileRepository _inboundShipmentFileRepository;
+        private readonly IInboundShipmentRequestRepository _inboundShipmentRequestRepository;
+        private readonly IUnitOfWork _unitOfWork;
+        private readonly ISequenceTrackingRepository _sequenceTrackingRepository;
+
+        public InboundShipmentService(
+            IAgentRepository agentRepository,
+            IASNHeaderRepository asnHeaderRepository,
+            IContainerRepository containerRepository,
+            IDataRetrievalService dataRetrievalService,
+            IFileTrackingRepository fileTrackingRepository,
+            IPortRepository portRepository,
+            IMapper mapper,
+            ILogger<InboundShipmentService> logger,
+            IInboundShipmentRepository inboundShipmentRepository,
+            IInboundShipmentBLAWBRepository inboundShipmentBlAwbRepository,
+            IInboundShipmentFileRepository inboundShipmentFileRepository,
+            IInboundShipmentRequestRepository inboundShipmentRequestRepository,
+            IUnitOfWork unitOfWork,
+            ISequenceTrackingRepository sequenceTrackingRepository)
+        {
+            _agentRepository = agentRepository;
+            _asnHeaderRepository = asnHeaderRepository;
+            _containerRepository = containerRepository;
+            _dataRetrievalService = dataRetrievalService;
+            _fileTrackingRepository = fileTrackingRepository;
+            _portRepository = portRepository;
+            _mapper = mapper;
+            _logger = logger;
+            _inboundShipmentRepository = inboundShipmentRepository;
+            _inboundShipmentBlAwbRepository = inboundShipmentBlAwbRepository;
+            _inboundShipmentFileRepository = inboundShipmentFileRepository;
+            _inboundShipmentRequestRepository = inboundShipmentRequestRepository;
+            _unitOfWork = unitOfWork;
+            _sequenceTrackingRepository = sequenceTrackingRepository;
+        }
+
+        public async Task<int[]> CreateInboundShipmentAsync(string userId, List<CreateInboundShipmentRequestDto> requests)
+        {
+            var asnHeaderForMapping = await ValidateCreateIShRequest(_mapper.Map<List<InboundShipmentRequestDto>>(requests));
+            var inboundShipmentToInsert = new List<InboundShipment>();
+            var inboundShipmentBlAwbToInsert = new List<InboundShipmentBLAWB>();
+            var containersToInsert = new List<Container>();
+            var ishInfos = new List<InboundShipmentInfoMapping>();
+            var urlPathList = new List<string>();
+            List<FileTracking> fileTrackingToInsert = [];
+            foreach (var request in requests)
+            {
+                // Handle for po file
+                if (request.Attachments is not null && request.Attachments?.Count > 0)
+                {
+                    fileTrackingToInsert = [];
+                    foreach (var attachment in request.Attachments)
+                    {
+                        foreach (var item in attachment.files)
+                        {
+                            var urlPath = await Utilities.SaveFileUpload(item);
+                            urlPathList.Add(urlPath);
+                            var fileTracking = new FileTracking
+                            {
+                                created_by = userId,
+                                file_type = item.ContentType,
+                                document_type = attachment.document_type,
+                                file_name = item.FileName,
+                                upload_source = attachment.upload_source,
+                                url_path = urlPath,
+                                file_size = Utilities.ConvertFileLengthToMegabytes(item.Length),
+                            };
+
+                            fileTrackingToInsert.Add(fileTracking);
+                        }
+                    }
+                }
+
+                var inboundShipment = _mapper.Map<InboundShipment>(request);
+
+                var seq = await _sequenceTrackingRepository.GetSequenceNoByType(SequenceTracking.Type.InboundShipment);
+                // - inbound Shipment No is formatted as SHIBYYMM99999
+                // - Status Flag will be 0:New 
+                inboundShipment.inbound_shipment_no = $"{SequenceTracking.Type.InboundShipment}{DateTime.Now:yyMM}{seq:00000}";
+                inboundShipment.status_flag = DomainConstant.InboundShipments.StatusFlag.New;
+                inboundShipment.created_by = userId;
+                inboundShipment.created_on = DateTime.Now;
+                inboundShipmentToInsert.Add(inboundShipment);
+                var mappingItem = new InboundShipmentInfoMapping
+                {
+                    InboundShipment = inboundShipment,
+                    BlAwb = [],
+                    AsnList = request.asnList,
+                    FileTrackings = fileTrackingToInsert
+                };
+
+                if (request.bl_awb is not null)
+                {
+
+                    foreach (var item in request.bl_awb)
+                    {
+                        var blAwb = _mapper.Map<InboundShipmentBLAWB>(item);
+                        blAwb.created_by = userId;
+                        blAwb.created_on = DateTime.Now;
+
+                        var containers = _mapper.Map<List<Container>>(item.containers);
+
+                        var blAwbContainerMapping = new BlAwbContainerMapping
+                        {
+                            InboundShipmentBlAwb = blAwb,
+                            Containers = containers
+                        };
+
+                        mappingItem.BlAwb.Add(blAwbContainerMapping);
+                    }
+                }
+
+                ishInfos.Add(mappingItem);
+            }
+
+            try
+            {
+                _unitOfWork.BeginTransaction();
+                if (fileTrackingToInsert.Count > 0)
+                {
+                    await _fileTrackingRepository.CreateRangeAsync(fileTrackingToInsert);
+                }
+
+                if (inboundShipmentToInsert.Count > 0)
+                {
+                    await _inboundShipmentRepository.CreateRangeAsync(inboundShipmentToInsert);
+                    _logger.LogInformation($"-Inserted inboundShipment: {inboundShipmentToInsert.Count} rows");
+                    await _unitOfWork.SaveChangesAsync();
+                }
+
+                var ishFileToInsert = new List<InboundShipmentFile>();
+                foreach (var ishInfo in ishInfos)
+                {
+                    if (ishInfo.AsnList is not null)
+                    {
+                        var asnHeaders = asnHeaderForMapping.Where(x => ishInfo.AsnList.Contains(x.id)).ToList();
+
+                        foreach (var asnHeader in asnHeaders)
+                        {
+                            //asnHeader.inbound_shipment_id = ishInfo.InboundShipment.id;
+                            asnHeader.last_modified_by = userId;
+                            asnHeader.last_modified_on = DateTime.Now;
+                        }
+                    }
+
+                    foreach (var blAwbContainerMapping in ishInfo.BlAwb)
+                    {
+                        blAwbContainerMapping.InboundShipmentBlAwb.inbound_shipment_id = ishInfo.InboundShipment.id;
+                        inboundShipmentBlAwbToInsert.Add(blAwbContainerMapping.InboundShipmentBlAwb);
+                    }
+
+                    //Handle for PO file
+                    foreach (var fileTracking in ishInfo.FileTrackings)
+                    {
+                        ishFileToInsert.Add(new InboundShipmentFile
+                        {
+                            file_id = fileTracking.id,
+                            inbound_shipment_id = ishInfo.InboundShipment.id,
+                            created_on = DateTime.Now,
+                            created_by = userId,
+                        });
+                    }
+                }
+
+                if (inboundShipmentBlAwbToInsert.Count > 0)
+                {
+                    await _inboundShipmentBlAwbRepository.CreateRangeAsync(inboundShipmentBlAwbToInsert);
+                    _logger.LogInformation($"-Inserted inboundShipmentBlAwb: {inboundShipmentBlAwbToInsert.Count} rows");
+                    await _unitOfWork.SaveChangesAsync();
+                }
+
+                if (asnHeaderForMapping.Count > 0)
+                {
+                    await _asnHeaderRepository.UpdateRangeAsync(asnHeaderForMapping);
+                    _logger.LogInformation($"-Updated asnHeader: {asnHeaderForMapping.Count} rows");
+                }
+
+                if (ishFileToInsert.Count > 0)
+                {
+                    await _inboundShipmentFileRepository.CreateRangeAsync(ishFileToInsert);
+                    _logger.LogInformation($"-Inserted inboundShipmentFile: {ishFileToInsert.Count} rows");
+                }
+
+                var blAwbContainerMappingList = ishInfos.SelectMany(x => x.BlAwb).ToList();
+
+                foreach (var blAwbContainerMapping in blAwbContainerMappingList)
+                {
+                    foreach (var container in blAwbContainerMapping.Containers)
+                    {
+                        //container.inbound_shipment_blawb_id = blAwbContainerMapping.InboundShipmentBlAwb.id;
+                        container.status_flag = DomainConstant.Containers.StatusFlag.Incoming;
+                        container.created_by = userId;
+                        container.created_on = DateTime.Now;
+                        containersToInsert.Add(container);
+                    }
+                }
+
+                if (containersToInsert.Count > 0)
+                {
+                    await _containerRepository.CreateRangeAsync(containersToInsert);
+                    _logger.LogInformation($"-Inserted containers: {containersToInsert.Count} rows");
+                }
+
+                await _unitOfWork.SaveChangesAsync();
+                _unitOfWork.Commit();
+            }
+            catch (Exception ex)
+            {
+                _unitOfWork.Rollback();
+                _logger.LogError(ex, ex.Message);
+
+                foreach (var urlPath in urlPathList)
+                {
+                    Directory.Delete(urlPath, true);
+                }
+
+                throw;
+            }
+
+            return inboundShipmentToInsert.Select(x => x.id).ToArray();
+        }
+
+        public async Task UpdateInboundShipmentAsync(string userId, List<InboundShipmentRequestDto> requests)
+        {
+            await ValidateCreateIShRequest(requests);
+
+            var dicExistedInboundShipments = await _inboundShipmentRepository.GetDictionaryAsync(x => requests.Select(y => y.id).Contains(x.id));
+
+            if (dicExistedInboundShipments.Count == 0) return;
+
+            var inboundShipmentToUpdate = new List<InboundShipment>();
+
+            foreach (var request in requests)
+            {
+                if (!dicExistedInboundShipments.TryGetValue(request.id, out var existedInboundShipment)) continue;
+
+                _mapper.Map(request, existedInboundShipment);
+                existedInboundShipment.last_modified_by = userId;
+                existedInboundShipment.last_modified_on = DateTime.Now;
+
+                inboundShipmentToUpdate.Add(existedInboundShipment);
+            }
+
+            try
+            {
+                _unitOfWork.BeginTransaction();
+                if (inboundShipmentToUpdate.Count > 0)
+                {
+                    await _inboundShipmentRepository.UpdateRangeAsync(inboundShipmentToUpdate);
+                }
+
+                await _unitOfWork.SaveChangesAsync();
+                _unitOfWork.Commit();
+            }
+            catch (Exception ex)
+            {
+                _unitOfWork.Rollback();
+                _logger.LogError(ex, ex.Message);
+                throw;
+            }
+        }
+
+        public async Task UpdateInboundShipmentBlAwbAsync(string userId, List<InboundShipmentBLAWBRequestDto> requests)
+        {
+            var blAwbIds = requests.Select(x => x.inbound_shipment_blawb_id).Distinct().ToHashSet();
+            var blAwbList = await GetBlAwbListAsync(blAwbIds);
+
+            // -inbound_shipment_blawb_id exisits in InboundShipmentBLAWB table
+            var invalidBlAwbId = blAwbIds.Except(blAwbList.Select(x => x.id)).ToArray();
+            if (invalidBlAwbId.Length > 0)
+            {
+                throw new NotFoundException(ErrorCodes.ValidationError,
+                    string.Format(ErrorMessages.BlAwbNotFound, nameof(InboundShipmentBLAWB.id), string.Join(",", invalidBlAwbId)));
+            }
+            var blAwbToUpdate = new List<InboundShipmentBLAWB>();
+            foreach (var updateRequest in requests)
+            {
+                var blAwb = blAwbList.Find(x => x.id == updateRequest.inbound_shipment_blawb_id);
+                if (blAwb is null)
+                {
+                    _logger.LogWarning("BlAwb {0} not found", updateRequest.inbound_shipment_blawb_id);
+                    continue;
+                }
+
+                _mapper.Map(updateRequest, blAwb);
+                blAwb.last_modified_by = userId;
+                blAwb.last_modified_on = DateTime.Now;
+                blAwbToUpdate.Add(blAwb);
+            }
+
+            if (blAwbToUpdate.Count > 0)
+            {
+                await _inboundShipmentBlAwbRepository.UpdateRangeAsync(blAwbToUpdate);
+                await _unitOfWork.SaveChangesAsync();
+            }
+        }
+
+        public async Task<int[]> CreateInboundShipmentBlAwbAsync(string userId, List<InboundShipmentBLAWBRequestDto> requests)
+        {
+            await ValidateCreateIShrRequest(requests);
+            var blAwbToInsert = new List<InboundShipmentBLAWB>();
+            foreach (var createBlAwbRequest in requests)
+            {
+                var blAwb = _mapper.Map<InboundShipmentBLAWB>(createBlAwbRequest);
+                blAwb.created_by = userId;
+                blAwb.created_on = DateTime.Now;
+                blAwbToInsert.Add(blAwb);
+            }
+
+            if (blAwbToInsert.Count > 0)
+            {
+                await _inboundShipmentBlAwbRepository.CreateRangeAsync(blAwbToInsert);
+                await _unitOfWork.SaveChangesAsync();
+            }
+
+            return blAwbToInsert.Select(x => x.id).ToArray();
+        }
+
+        public async Task<InboundShipmentDetailResponseDto> GetByIdAsync(int id)
+        {
+            var inboundShipment = await _inboundShipmentRepository.GetByIdAsync(x => x.id == id);
+
+            if (inboundShipment == null)
+            {
+                throw new NotFoundException(ErrorCodes.InboundShipmentNotFound,
+                    string.Format(ErrorMessages.InboundShipmentNotFound, nameof(InboundShipment.id), id));
+            }
+
+            var result = await GetInboundShipmentDetail(inboundShipment);
+            return result;
+        }
+
+        public async Task<InboundShipmentDetailResponseDto> GetByInboundShipmentNoAsync(string inboundShipmentNo)
+        {
+            var inboundShipment = await _inboundShipmentRepository.GetByIdAsync(x => x.inbound_shipment_no.Equals(inboundShipmentNo));
+
+            if (inboundShipment == null)
+            {
+                throw new NotFoundException(ErrorCodes.InboundShipmentNotFound,
+                    string.Format(ErrorMessages.InboundShipmentNotFound, nameof(InboundShipment.inbound_shipment_no), inboundShipmentNo));
+            }
+
+            var result = await GetInboundShipmentDetail(inboundShipment);
+            return result;
+        }
+
+        public async Task AddAsnAsync(string userId, MappingAsnRequestDto request)
+        {
+            //// - inbound_shipment_id is found in InboundShipmentRequest with status_flag of 0: New
+            //var isValidInboundShipmentId = await _inboundShipmentRepository.IsValidInboundShipment(request.inboundShipmentId);
+
+            //if (isValidInboundShipmentId == false)
+            //{
+            //    throw new BadRequestException(ErrorCodes.ValidationError,
+            //        string.Format(ErrorMessages.MappingAsnInvalidInboundShipmentId, request.inboundShipmentId));
+            //}
+
+            //// - asn_header_id is found in ASNHeader table with status_flag not 01, 30 or 90.
+            //var asnForMapping = await _asnHeaderRepository.GetAsnForMappingWithInboundShipment(request.asnList);
+
+            //var inValidAsnHeaderId = request.asnList.Except(asnForMapping.Select(x => x.id)).ToArray();
+            //if (inValidAsnHeaderId.Length > 0)
+            //{
+            //    throw new BadRequestException(ErrorCodes.ValidationError,
+            //        string.Format(ErrorMessages.MappingAsnInvalidAsnHeaderId, string.Join(", ", inValidAsnHeaderId)));
+            //}
+
+            //// - Get inboundShipmentRequest record from ASNHeader.
+            //var isrIDs = asnForMapping.Where(x => x.inbound_shipment_request_id != null)
+            //    .Select(x => x.inbound_shipment_request_id!.Value).Distinct().ToHashSet();
+            //var inboundShipmentRequests = await GetInboundShipmentRequestByAsnList(isrIDs);
+
+            //if (inboundShipmentRequests.Count == 0)
+            //{
+            //    _logger.LogWarning("MappingAsn: inbound_shipment_request_id is not found in ASNHeader table.");
+            //    return;
+            //}
+
+            //// Update inboundShipmentRequest.status to 1:Arranged and inbound_shipment_id to given inbound_shipment_id.
+            //foreach (var inboundShipmentRequest in inboundShipmentRequests)
+            //{
+            //    inboundShipmentRequest.status_flag = InboundShipmentsRequest.StatusFlag.Arranged;
+            //    inboundShipmentRequest.last_modified_by = userId;
+            //    inboundShipmentRequest.last_modified_on = DateTime.Now;
+            //}
+
+            //// Update ASNHeaders with inbound_shipment_id
+            //foreach (var asnHeader in asnForMapping)
+            //{
+            //    asnHeader.inbound_shipment_id = request.inboundShipmentId;
+            //    asnHeader.last_modified_by = userId;
+            //    asnHeader.last_modified_on = DateTime.Now;
+            //}
+
+            //try
+            //{
+            //    _unitOfWork.BeginTransaction();
+            //    if (inboundShipmentRequests.Count > 0)
+            //    {
+            //        await _inboundShipmentRequestRepository.UpdateRangeAsync(inboundShipmentRequests);
+            //        _logger.LogInformation($"MappingAsn: Updated inboundShipmentRequest: {inboundShipmentRequests.Count} rows");
+            //    }
+
+            //    if (asnForMapping.Count > 0)
+            //    {
+            //        await _asnHeaderRepository.UpdateRangeAsync(asnForMapping);
+            //        _logger.LogInformation($"MappingAsn: Updated ASNHeader: {asnForMapping.Count} rows");
+            //    }
+
+            //    await _unitOfWork.SaveChangesAsync();
+            //    _unitOfWork.Commit();
+            //}
+            //catch (Exception ex)
+            //{
+            //    _unitOfWork.Rollback();
+            //    _logger.LogError(ex, ex.Message);
+            //    throw;
+            //}
+        }
+
+        public async Task DeleteAsnAsync(string userId, MappingAsnRequestDto request)
+        {
+            //// - asn_header_id is found in ASNHeader table with status_flag not 01, 30 or 90.
+            //var asnHeaderValid = await _asnHeaderRepository.CheckAsnHeaderForDelete(request.asnList);
+
+            //var inValidAsnHeaderId = request.asnList.Except(asnHeaderValid.Item1).ToArray();
+            //if (inValidAsnHeaderId.Length > 0)
+            //{
+            //    throw new BadRequestException(ErrorCodes.ValidationError,
+            //        string.Format(ErrorMessages.MappingAsnInvalidAsnHeaderId, string.Join(", ", inValidAsnHeaderId)));
+            //}
+
+            //// - Get inboundShipmentRequest record from ASNHeader. Update inboundShipmentRequest.status to 0:New and inbound_shipment_id to blank.
+            //var inboundShipmentRequests = await GetInboundShipmentRequestByIdAsync(asnHeaderValid.Item2);
+
+            //if (inboundShipmentRequests.Count == 0)
+            //{
+            //    _logger.LogWarning("MappingAsn: inbound_shipment_request_id is not found in ASNHeader table.");
+            //    return;
+            //}
+
+            //foreach (var inboundShipmentRequest in inboundShipmentRequests)
+            //{
+            //    inboundShipmentRequest.status_flag = InboundShipmentsRequest.StatusFlag.New;
+            //    inboundShipmentRequest.last_modified_by = userId;
+            //    inboundShipmentRequest.last_modified_on = DateTime.Now;
+            //}
+
+            //if (inboundShipmentRequests.Count > 0)
+            //{
+            //    await _inboundShipmentRequestRepository.UpdateRangeAsync(inboundShipmentRequests);
+            //    await _unitOfWork.SaveChangesAsync();
+            //}
+        }
+
+        public PagedResponse<PagedIsrResponseDto> ISRPagedFilterAsync(PagedFilterIsRequestDto request)
+        {
+            var pageable = PagingUtilities.GetPageable(request.Page, request.PageSize);
+            var skipRow = PagingUtilities.GetSkipRow(pageable.Page, pageable.Size);
+
+            if (request.BranchPlants is null || request.BranchPlants.Count == 0)
+            {
+                return new PagedResponse<PagedIsrResponseDto>();
+            }
+
+            var query = _inboundShipmentRequestRepository.BuildISRFilterQuery(new PageFilterIsrRequestModel
+            {
+                Keyword = request.Keyword,
+                incoterms = request.incoterms,
+                country_of_loading_list = request.country_of_loading_list,
+                port_of_loading_list = request.port_of_loading_list,
+                country_of_discharge_list = request.country_of_discharge_list,
+                port_of_discharge_list = request.port_of_discharge_list,
+                status_list = request.status_list,
+                cargo_ready_date_from = request.cargo_ready_date_from,
+                cargo_ready_date_to = request.cargo_ready_date_to,
+                BranchPlants = request.BranchPlants,
+                inbound_shipment_request_group_no_list = request.inbound_shipment_request_group_no_list
+            });
+
+            var listSort = new List<Sortable>
+            {
+                new()
+                {
+                    FieldName = request.SortBy ?? DefaultSortField.ISR,
+                    IsAscending = request.SortAscending
+                }
+            };
+
+            var orderBy = ApplySort.GetOrderByFunction<PagedIsrResponseDetail>(listSort);
+
+            var totalRows = query.Count();
+            if (totalRows == 0)
+            {
+                return new PagedResponse<PagedIsrResponseDto>();
+            }
+
+            var totalPage = (int)Math.Ceiling(totalRows / (request.PageSize * 1.0));
+            var pagedResponse = orderBy(query).Skip(skipRow).Take(pageable.Size).ToList();
+            return new PagedResponse<PagedIsrResponseDto>
+            {
+                Items = _mapper.Map<List<PagedIsrResponseDto>>(pagedResponse),
+                TotalItems = totalRows,
+                TotalPage = totalPage,
+                Page = pageable.Page,
+                PageSize = pageable.Size
+            };
+        }
+
+        public PagedResponse<PagedIshResponseDto> ISHPagedFilterAsync(PagedFilterIsRequestDto request)
+        {
+            var pageable = PagingUtilities.GetPageable(request.Page, request.PageSize);
+            var skipRow = PagingUtilities.GetSkipRow(pageable.Page, pageable.Size);
+
+            if (request.BranchPlants is null || request.BranchPlants.Count == 0)
+            {
+                return new PagedResponse<PagedIshResponseDto>();
+            }
+
+            var query = _inboundShipmentRepository.BuildISHFilterQuery(new PagedFilterIsRequestModel
+            {
+                Keyword = request.Keyword,
+                incoterms = request.incoterms,
+                country_of_loading_list = request.country_of_loading_list,
+                port_of_loading_list = request.port_of_loading_list,
+                country_of_discharge_list = request.country_of_discharge_list,
+                port_of_discharge_list = request.port_of_discharge_list,
+                status_list = request.status_list,
+                cargo_ready_date_from = request.cargo_ready_date_from,
+                cargo_ready_date_to = request.cargo_ready_date_to,
+                BranchPlants = request.BranchPlants,
+                inbound_shipment_request_group_no_list = request.inbound_shipment_request_group_no_list
+            }, out var totalRows);
+
+            var listSort = new List<Sortable>
+            {
+                new()
+                {
+                    FieldName = request.SortBy ?? DefaultSortField.ISH,
+                    IsAscending = request.SortAscending
+                }
+            };
+
+            var orderBy = ApplySort.GetOrderByFunction<PagedIshResponseDetail>(listSort);
+
+            //var totalRows = await query.CountAsync();
+            if (totalRows == 0)
+            {
+                return new PagedResponse<PagedIshResponseDto>();
+            }
+
+            var totalPage = (int)Math.Ceiling(totalRows / (request.PageSize * 1.0));
+            var pagedResponse = orderBy(query).Skip(skipRow).Take(pageable.Size).ToList();
+
+            return new PagedResponse<PagedIshResponseDto>
+            {
+                Items = _mapper.Map<List<PagedIshResponseDto>>(pagedResponse),
+                TotalItems = totalRows,
+                TotalPage = totalPage,
+                Page = pageable.Page,
+                PageSize = pageable.Size
+            };
+        }
+
+        public async Task DeleteBlAwbLineAsync(List<int> blAwbIDs)
+        {
+            var blAwbLines = _inboundShipmentBlAwbRepository.Find(x => blAwbIDs.Contains(x.id)).Result.ToList();
+
+            var inValidBlAwbId = blAwbIDs.Except(blAwbLines.Select(x => x.id)).ToArray();
+            if (inValidBlAwbId.Length > 0)
+            {
+                throw new BadRequestException(ErrorCodes.ValidationError,
+                    string.Format(ErrorMessages.InboundShipmentBlAwbNotFound, nameof(InboundShipmentBLAWB.id), string.Join(", ", inValidBlAwbId)));
+            }
+
+            await _inboundShipmentBlAwbRepository.DeleteRangeAsync(blAwbLines);
+            await _unitOfWork.SaveChangesAsync();
+        }
+
+        public async Task<object> GetInboundShipmentRequestGroupListAsync(string statusFlag)
+        {
+            var isgNoList = await _inboundShipmentRequestRepository.GetInboundShipmentRequestGroupList(statusFlag);
+            return isgNoList;
+        }
+
+        public async Task<int[]> UploadFileAsync(string userId, UploadIhsRequestDto request)
+        {
+            var isExistedHeader = await _inboundShipmentRepository.CheckExisted(request.inbound_shipment_id);
+
+            if (!isExistedHeader)
+            {
+                throw new NotFoundException(ErrorCodes.ValidationError,
+                    string.Format(ErrorMessages.InboundShipmentNotFound, nameof(InboundShipment.id), request.inbound_shipment_id));
+            }
+
+            var fileNames = request.files.Select(x => x.file.FileName).ToArray();
+            //await ValidateFileUpload(fileNames);
+
+            var fileTrackingToInsert = new List<FileTracking>();
+
+            foreach (var item in request.files)
+            {
+                var fileTracking = new FileTracking
+                {
+                    created_by = userId,
+                    file_type = item.file.ContentType,
+                    file_name = item.file.FileName,
+                    upload_source = request.upload_source,
+                    document_type = request.document_type,
+                    url_path = item.url_path,
+                    file_size = Utilities.ConvertFileLengthToMegabytes(item.file.Length),
+                };
+
+                fileTrackingToInsert.Add(fileTracking);
+            }
+
+            if (fileTrackingToInsert.Count == 0)
+            {
+                return [];
+            }
+
+            int[] fileIds;
+            try
+            {
+                _unitOfWork.BeginTransaction();
+                await _fileTrackingRepository.CreateRangeAsync(fileTrackingToInsert);
+                await _unitOfWork.SaveChangesAsync();
+
+                var ihsFileToInsert = fileTrackingToInsert.Select(x => new InboundShipmentFile
+                {
+                    created_by = userId,
+                    inbound_shipment_id = request.inbound_shipment_id,
+                    file_id = x.id,
+                }).ToList();
+
+                if (ihsFileToInsert.Count > 0)
+                {
+                    await _inboundShipmentFileRepository.CreateRangeAsync(ihsFileToInsert);
+                }
+
+                await _unitOfWork.SaveChangesAsync();
+                _unitOfWork.Commit();
+                fileIds = ihsFileToInsert.Select(x => x.id).ToArray();
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, e.Message);
+                _unitOfWork.Rollback();
+                throw;
+            }
+
+            await _unitOfWork.SaveChangesAsync();
+            return fileIds;
+        }
+
+        public async Task<List<string>> RemoveFileAsync(int ishId, List<int> ihsFileIDs)
+        {
+            var ihsFile = await GetInboundShipmentFileList(ishId, ihsFileIDs);
+
+
+            if (ihsFile is null)
+            {
+                throw new NotFoundException(ErrorCodes.POFileNotFound,
+                    string.Format(ErrorMessages.POFileNotFound, ihsFileIDs));
+            }
+
+            var listFileTrackingIDs = ihsFile.Select(x => x.file_id).Distinct().ToHashSet();
+            var fileTracking = await GetListFileTracking(listFileTrackingIDs);
+
+            if (fileTracking is null)
+            {
+                throw new NotFoundException(ErrorCodes.FileTrackingNotFound,
+                    string.Format(ErrorMessages.FileTrackingNotFound, ihsFileIDs));
+            }
+
+            var filePath = fileTracking.Select(x => x.url_path).ToList();
+            try
+            {
+                _unitOfWork.BeginTransaction();
+
+                await _inboundShipmentFileRepository.DeleteRangeAsync(ihsFile);
+                await _fileTrackingRepository.DeleteRangeAsync(fileTracking);
+
+                await _unitOfWork.SaveChangesAsync();
+                _unitOfWork.Commit();
+            }
+            catch (Exception e)
+            {
+                _unitOfWork.Rollback();
+                _logger.LogError(e, e.Message);
+                throw;
+            }
+
+            return filePath;
+        }
+
+        public async Task DeleteInboundShipmentAsync(string userId, int inboundShipmentId)
+        {
+            var inboundShipment = await _inboundShipmentRepository.GetByIdAsync(x => x.id == inboundShipmentId);
+            if (inboundShipment is null)
+            {
+                throw new NotFoundException(ErrorCodes.InboundShipmentNotFound,
+                    string.Format(ErrorMessages.InboundShipmentNotFound, nameof(InboundShipment.id), inboundShipmentId));
+            }
+
+            switch (inboundShipment.status_flag)
+            {
+                // - Update InboundShipment to status 90: Cancelled if status is 02: New
+                case DomainConstant.InboundShipments.StatusFlag.New:
+                    {
+                        inboundShipment.status_flag = DomainConstant.InboundShipments.StatusFlag.Cancelled;
+                        inboundShipment.last_modified_by = userId;
+                        inboundShipment.last_modified_on = DateTime.UtcNow;
+                        await _inboundShipmentRepository.UpdateAsync(inboundShipment);
+                        break;
+                    }
+                // - Delete InboundShipment if status is 01: Draft. Delete InboundShipmentBLAWB and InboundShipmentFile records for the InboundShipment too.
+                case DomainConstant.InboundShipments.StatusFlag.Draft:
+                    {
+                        var inboundShipmentBlAwb = await _inboundShipmentBlAwbRepository.GetBlAwbByInboundShipmentId(inboundShipmentId);
+                        var inboundShipmentFiles = await _inboundShipmentFileRepository.GetInboundShipmentFiles(inboundShipmentId);
+
+                        try
+                        {
+                            _unitOfWork.BeginTransaction();
+                            if (inboundShipmentBlAwb.Count > 0)
+                            {
+                                await _inboundShipmentBlAwbRepository.DeleteRangeAsync(inboundShipmentBlAwb);
+                            }
+
+                            if (inboundShipmentFiles.Count > 0)
+                            {
+                                await _inboundShipmentFileRepository.DeleteRangeAsync(inboundShipmentFiles);
+                            }
+
+                            await _inboundShipmentRepository.DeleteAsync(inboundShipment);
+                            await _unitOfWork.SaveChangesAsync();
+                            _unitOfWork.Commit();
+                        }
+                        catch (Exception ex)
+                        {
+                            _unitOfWork.Rollback();
+                            _logger.LogError(ex, ex.Message);
+                        }
+                        break;
+                    }
+            }
+        }
+        #region Private method
+        private async Task<InboundShipmentDetailResponseDto> GetInboundShipmentDetail(InboundShipment inboundShipment)
+        {
+            var result = new InboundShipmentDetailResponseDto
+            {
+                inbound_shipment = _mapper.Map<InboundShipmentResponse>(inboundShipment),
+                asns = _mapper.Map<List<InboundShipmentDetailAnsResponse>>(await _asnHeaderRepository.GetAsnInfoByInboundShipmentId(inboundShipment.id)),
+                bl_awb = _mapper.Map<List<InboundShipmentBlAwbResponse>>(await _inboundShipmentBlAwbRepository.GetBlAwbAndContainers(inboundShipment.id)),
+                inbound_shipment_files = await GetInboundShipmentFiles(inboundShipment.id)
+            };
+
+            return result;
+        }
+
+        private async Task<List<InboundShipmentFileResponse>?> GetInboundShipmentFiles(int inboundShipmentId)
+        {
+            var inboundShipmentFiles =
+                await _inboundShipmentFileRepository.GetInboundShipmentFileDetail(inboundShipmentId);
+
+            return _mapper.Map<List<InboundShipmentFileResponse>>(inboundShipmentFiles);
+        }
+
+        private async Task<List<ASNHeader>> ValidateCreateIShRequest(List<InboundShipmentRequestDto> request)
+        {
+            var issuingBranchPlantIds = request.Select(x => x.branch_plant_id).Distinct().ToHashSet();
+
+            // - issuing_branch_plant_id exists in BranchPlant table with status flag of E
+            //var invalidIssuingBranchPlantIds = await _branchPlantRepository.CheckInvalidBranchPlantIds(issuingBranchPlantIds);
+            //if (invalidIssuingBranchPlantIds.Length > 0)
+            //{
+            //    throw new BadRequestException(string.Format(ErrorMessages.InvalidDataFromRequest,
+            //        nameof(InboundShipment.branch_plant_id), string.Join(", ", invalidIssuingBranchPlantIds),
+            //        nameof(BranchPlant), nameof(StatusFlag.Enabled)));
+            //}
+
+            var portOfLoadingIds = request.Select(x => x.port_of_loading_id).Distinct().ToHashSet();
+            // - port_of_loading_id and port_of_discharge_id exists in Port table with status flag of E
+            var invalidPortOfLoadingIds = await _portRepository.CheckInvalidPortIds(portOfLoadingIds);
+            if (invalidPortOfLoadingIds.Length > 0)
+            {
+                throw new BadRequestException(string.Format(ErrorMessages.InvalidDataFromRequest,
+                    nameof(InboundShipment.port_of_loading_id), string.Join(", ", invalidPortOfLoadingIds),
+                    nameof(Port), nameof(StatusFlag.Enabled)));
+            }
+
+            var forwarderAgentIds = request.Where(x => x.forwarder_agent_id.HasValue && x.forwarder_agent_id > 0)
+                .Select(x => x.forwarder_agent_id!.Value).Distinct().ToList();
+            var shippingAgentIds = request.Where(x => x.shipping_agent_id.HasValue && x.shipping_agent_id > 0)
+                .Select(x => x.shipping_agent_id!.Value).Distinct().ToList();
+
+            var existedAgents = await _agentRepository.GetAvailableAgentIds(forwarderAgentIds.Union(shippingAgentIds).ToHashSet());
+
+            // - forwarder_agent_id, shipping_agent_id and shipping_agent_id exists in Agent table
+            var invalidForwarderAgentIds = forwarderAgentIds.Except(existedAgents).Distinct().ToArray();
+            if (invalidForwarderAgentIds.Length > 0)
+            {
+                throw new BadRequestException(string.Format(ErrorMessages.InvalidDataFromRequest,
+                    nameof(InboundShipment.forwarder_agent_id), string.Join(", ", invalidForwarderAgentIds),
+                    nameof(Agent), nameof(StatusFlag.Enabled)));
+            }
+
+            var invalidShippingAgentIds = shippingAgentIds.Except(existedAgents).Distinct().ToArray();
+            if (invalidShippingAgentIds.Length > 0)
+            {
+                throw new BadRequestException(string.Format(ErrorMessages.InvalidDataFromRequest,
+                    nameof(InboundShipment.shipping_agent_id), string.Join(", ", invalidShippingAgentIds),
+                    nameof(Agent), nameof(StatusFlag.Enabled)));
+            }
+
+            // Only allowed ASN Header with status 02: New
+            var asnList = request.SelectMany(x => x.asnList).Distinct().ToHashSet();
+            var asnForMapping = await _asnHeaderRepository.GetNewAsnForMappingWithInboundShipment(asnList);
+
+            var inValidAsnHeaderId = asnList.Except(asnForMapping.Select(x => x.id)).ToArray();
+            if (inValidAsnHeaderId.Length > 0)
+            {
+                throw new BadRequestException(ErrorCodes.ValidationError,
+                    string.Format(ErrorMessages.MappingAsnHeaderWithStatusNewInvalid, string.Join(", ", inValidAsnHeaderId)));
+            }
+
+            return asnForMapping;
+        }
+
+        private async Task ValidateCreateIShrRequest(List<InboundShipmentBLAWBRequestDto> requests)
+        {
+            //var supplierIds = requests.Select(x => x.supplier_id).Distinct().ToList();
+            //var invalidSupplierIds = await _supplierRepository.CheckInvalidSupplierIds(supplierIds);
+
+            //if (invalidSupplierIds.Length > 0)
+            //{
+            //    throw new BadRequestException(string.Format(ErrorMessages.InvalidDataFromRequest,
+            //        nameof(InboundShipmentBLAWB.supplier_id), string.Join(", ", invalidSupplierIds),
+            //        nameof(Supplier), nameof(StatusFlag.Enabled)));
+            //}
+        }
+
+        private async Task<List<InboundShipmentRequest>> GetInboundShipmentRequestByAsnList(HashSet<int> asnForMapping)
+        {
+            var result = await _inboundShipmentRequestRepository
+                .Find(x => asnForMapping.Contains(x.id));
+
+            return result.ToList();
+        }
+
+        private async Task<List<InboundShipmentBLAWB>> GetBlAwbListAsync(HashSet<int> blAwbIds)
+        {
+            var blAwbList = await _inboundShipmentBlAwbRepository.Find(x => blAwbIds.Contains(x.id));
+            return blAwbList.ToList();
+        }
+
+        private async Task<List<InboundShipmentRequest>> GetInboundShipmentRequestByIdAsync(int[] isrIDs)
+        {
+            var isr = await _inboundShipmentRequestRepository.Find(x => isrIDs.Contains(x.id));
+
+            return isr.ToList();
+        }
+
+        private async Task ValidateFileUpload(string[] fileNames)
+        {
+            var duplicateFileName = fileNames
+                .GroupBy(fileName => fileName)
+                .Where(x => x.Count() > 1)
+                .Select(x => x.Key)
+                .ToArray();
+
+            if (duplicateFileName.Length > 0)
+            {
+                throw new BadRequestException(ErrorCodes.FileNameDuplicated, ErrorMessages.FileNameDuplicated,
+                    duplicateFileName);
+            }
+
+            // validate duplicate item-name in database
+            var fileNameAlreadyExistedInDatabase = await _fileTrackingRepository.ValidateFileNameInDatabase(fileNames);
+            if (fileNameAlreadyExistedInDatabase.Length > 0)
+            {
+                throw new BadRequestException(ErrorCodes.FileNameDuplicated, ErrorMessages.FileNameDuplicated,
+                    fileNameAlreadyExistedInDatabase);
+            }
+        }
+
+        private async Task<List<InboundShipmentFile>> GetInboundShipmentFileList(int ishId, List<int> ihsFileIDs)
+        {
+            var ish = await _inboundShipmentFileRepository.Find(x => x.inbound_shipment_id == ishId && ihsFileIDs.Contains(x.id));
+
+            return ish.ToList();
+        }
+
+        private async Task<List<FileTracking>> GetListFileTracking(HashSet<int> listFileTrackingIDs)
+        {
+            var fileTracking = await _fileTrackingRepository.Find(x => listFileTrackingIDs.Contains(x.id));
+
+            return fileTracking.ToList();
+        }
+        #endregion
+    }
+}

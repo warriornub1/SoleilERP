@@ -1,0 +1,15 @@
+﻿using SERP.Application.Common;
+using SERP.Domain.Transactions.PackingLists;
+using SERP.Domain.Transactions.PackingLists.Model;
+using System.Linq.Expressions;
+
+namespace SERP.Application.Transactions.PackingLists.Interfaces
+{
+    public interface IPackingHeaderRepository : IGenericRepository<PackingHeader>
+    {
+        Task<List<PackingListForReceiving>> GetPackingListForReceivingDetail(int packingListHeaderId);
+        Task<List<PackingHeader>> GetPackingListHeaderByConditionAsync(Expression<Func<PackingHeader, bool>> predicate);
+        IQueryable<PagedPackingInformationDetail> BuildPackingListQuery(FilterPackingListRequestModel filterPackingListRequestModel);
+        Task<List<int>> GetPackingHeaderId(Expression<Func<PackingHeader, bool>> predicate);
+    }
+}

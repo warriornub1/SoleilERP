@@ -1,0 +1,55 @@
+﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using SERP.Domain.Common.Constants;
+using SERP.Domain.Finance.CompanyStructures;
+using SERP.Domain.Masters.Companies;
+
+namespace SERP.Infrastructure.Common.DBContexts.Config
+{
+    public class CompanyStructureConfig : IEntityTypeConfiguration<CompanyStructure>
+    {
+        public void Configure(EntityTypeBuilder<CompanyStructure> builder)
+        {
+            var validStatusTypes = new[]
+            {
+                DomainConstant.StatusFlag.Enabled,
+                DomainConstant.StatusFlag.Disabled
+            };
+
+            var validOrgTypes = new[]
+            {
+                DomainConstant.CompanyStructure.OrgType.Department,
+                DomainConstant.CompanyStructure.OrgType.Division,
+                DomainConstant.CompanyStructure.OrgType.Section,
+                DomainConstant.CompanyStructure.OrgType.Team
+            };
+
+            builder.HasOne<Company>()
+                   .WithMany()
+                   .HasForeignKey(od => od.company_id)
+                   .OnDelete(DeleteBehavior.Restrict); // Parent cannot be deleted if children exist
+
+
+            builder.HasOne<CompanyStructure>()
+                   .WithMany()
+                   .HasForeignKey(g => g.parent_id)
+                   .OnDelete(DeleteBehavior.Restrict); // Parent cannot be deleted if children exist
+
+
+            builder.HasIndex(c => new { c.org_type, c.sequence, c.parent_id })
+                   .IsUnique();
+
+            builder.HasIndex(c => new { c.id, c.company_id })
+                   .IsUnique();
+
+            builder.HasCheckConstraint("CK_CompanyStructure_StatusFlag",
+                $"status_flag IN ({string.Join(", ", validStatusTypes.Select(t => $"'{t}'"))})");
+
+
+            builder.HasCheckConstraint("CK_CompanyStructure_OrgType",
+                $"org_type IN ({string.Join(", ", validOrgTypes.Select(t => $"'{t}'"))})");
+
+
+        }
+    }
+}

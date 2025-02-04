@@ -1,0 +1,15 @@
+﻿using SERP.Application.Finance.CostCenters.DTOs.Request;
+
+namespace SERP.Application.Finance.RevenueCenters.DTOs.Request
+{
+    public class UpdateRevenueCenterRequestModel
+    {
+        public int id { get; set; }
+        public string revenue_center_code { get; set; }
+        public string revenue_center_description { get; set; }
+        public int parent_group_id { get; set; }
+        public int? company_structure_id { get; set; }
+        public string status_flag { get; set; }
+
+    }
+}

@@ -1,0 +1,20 @@
+﻿using SERP.Application.Common;
+using SERP.Application.Finance.CostCenters.DTOs.Response;
+using SERP.Domain.Finance.CostCenters;
+using SERP.Domain.Finance.CostCenters.Model;
+
+namespace SERP.Application.Finance.CostCenters.Interface
+{
+    public interface ICostCenterRepository : IGenericRepository<CostCenter>
+    {
+        Task<CostCenterModel> FindCompanyMapping(int id);
+        Task<IEnumerable<CostCenterModel>> FindAllCompanyMapping();
+        Task<IEnumerable<CostCenterModel>> CostCenterFilterPaged(DateTime? createDatefrom, DateTime? createDateTo,
+                                                                            List<int> groupList, List<int> companyList,
+                                                                            List<string> statusList, string keyword);
+        Task<IEnumerable<string>> GetCode(List<(string, int)> RevenueCodes);
+        Task<IEnumerable<CostCenter>> GetCostCenterViaParentID(int parentId);
+
+        Task<Dictionary<string, CostCenter>> GetDictionary(List<string> ccCodes);
+    }
+}

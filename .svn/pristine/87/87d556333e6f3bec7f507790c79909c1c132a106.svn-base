@@ -1,0 +1,272 @@
+﻿using AutoMapper;
+using Microsoft.AspNetCore.Mvc;
+using SERP.Api.Common;
+using SERP.Api.Common.FileServers;
+using SERP.Application.Common.Dto;
+using SERP.Application.Masters.SystemKVSs.Services;
+using SERP.Application.Transactions.AdvancedShipmentNotices.DTOs.Base;
+using SERP.Application.Transactions.AdvancedShipmentNotices.DTOs.Request;
+using SERP.Application.Transactions.AdvancedShipmentNotices.Services;
+using SERP.Application.Transactions.Invoices.DTOs.Request;
+using SERP.Application.Transactions.PurchaseOrders.DTOs.Request;
+using SERP.Domain.Common.Constants;
+using SERP.Domain.Transactions.AdvancedShipmentNotices.Model;
+using SERP.Domain.Transactions.PurchaseOrders.Model;
+
+namespace SERP.Api.Controllers
+{
+    [Route("[controller]/[action]")]
+    [ApiController]
+    public class AdvancedShipmentNoticeController : ControllerBase
+    {
+        private readonly IAdvancedShipmentNoticeService _advancedShipmentNoticeService;
+        private readonly HttpContextService _httpContextService;
+        private readonly IWebHostEnvironment _webHostEnvironment;
+        private readonly IMapper _mapper;
+        private readonly ISystemKvsService _systemKvsService;
+
+        public AdvancedShipmentNoticeController(
+            IAdvancedShipmentNoticeService advancedShipmentNoticeService,
+            HttpContextService httpContextService,
+            IWebHostEnvironment webHostEnvironment,
+            IMapper mapper,
+            ISystemKvsService systemKvsService)
+        {
+            _advancedShipmentNoticeService = advancedShipmentNoticeService;
+            _httpContextService = httpContextService;
+            _webHostEnvironment = webHostEnvironment;
+            _mapper = mapper;
+            _systemKvsService = systemKvsService;
+        }
+
+        [HttpPost]
+        public IActionResult SearchPaged(
+            [FromQuery] SearchPagedRequestDto model,
+            [FromBody] AsnFilterRequestDto filter)
+        {
+            var request = _mapper.Map<PagedFilterAsnRequestDto>(model);
+            _mapper.Map(filter, request);
+            var result = _advancedShipmentNoticeService.PagedFilterAsnAsync(model, filter);
+            return Ok(result);
+        }
+
+        [HttpGet]
+        public IActionResult GetAllPaged([FromQuery] SearchPagedRequestDto model)
+        {
+            var result = _advancedShipmentNoticeService.PagedFilterAsnAsync(model, new AsnFilterRequestDto());
+            return Ok(result);
+        }
+
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [HttpPost]
+        public async Task<IActionResult> CreateASN([FromBody] CreateASNRequestDto request)
+        {
+            var result = await _advancedShipmentNoticeService.CreateAsnAsync(_httpContextService.GetCurrentUserId(), request);
+            return Ok(new
+            {
+                ids = result
+            });
+        }
+
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [HttpPut]
+        public async Task<IActionResult> UpdateASN([FromBody] UpdateASNRequestDto model)
+        {
+            await _advancedShipmentNoticeService.UpdateAsnAsync(_httpContextService.GetCurrentUserId(), model);
+            return Ok();
+        }
+
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [HttpGet("{id:int}")]
+        public async Task<IActionResult> GetById([FromRoute] int id)
+        {
+            var result = await _advancedShipmentNoticeService.GetByIdAsync(id);
+            return Ok(result);
+        }
+
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [HttpGet("{asnNo}")]
+        public async Task<IActionResult> GetByAsnNo([FromRoute] string asnNo)
+        {
+            var result = await _advancedShipmentNoticeService.GetByAsnNoAsync(asnNo);
+            return Ok(result);
+        }
+
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [HttpPost]
+        public async Task<IActionResult> UploadFile([FromForm] UploadAsnFileRequestModel model)
+        {
+            await _systemKvsService.ValidateFileUploadAsync(model.files);
+
+            var request = _mapper.Map<UploadAsnFileRequestDto>(model);
+
+            var fileInfos = new List<FileInfoRequestDto>();
+            foreach (var file in model.files)
+            {
+                fileInfos.Add(new FileInfoRequestDto
+                {
+                    file = file,
+                    url_path = FileServerHelper.SaveToResourceFolder(_webHostEnvironment.ContentRootPath, file,
+                        DomainConstant.Resources.ASNFile)
+                });
+            }
+
+            request.files = fileInfos;
+            try
+            {
+                var result = await _advancedShipmentNoticeService.UploadFileAsync(_httpContextService.GetCurrentUserId(), request);
+
+                return Ok(new
+                {
+                    AsnFileIDs = result
+                });
+            }
+            catch
+            {
+                foreach (var item in fileInfos)
+                {
+                    if (!string.IsNullOrEmpty(item.url_path))
+                    {
+                        FileServerHelper.RemoveResourceFile(_webHostEnvironment.ContentRootPath, DomainConstant.Resources.ASNFile, item.url_path);
+                    }
+                }
+                throw;
+            }
+        }
+
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [HttpPost("{asnHeaderId:int}")]
+        public async Task<IActionResult> RemoveFile([FromRoute] int asnHeaderId, [FromBody] List<int> poFileIDs)
+        {
+            var filePath = await _advancedShipmentNoticeService.RemoveFileAsync(asnHeaderId, poFileIDs);
+
+            foreach (var path in filePath)
+            {
+                if (!string.IsNullOrEmpty(path))
+                {
+                    FileServerHelper.RemoveResourceFile(_webHostEnvironment.ContentRootPath, DomainConstant.Resources.ASNFile, path);
+                }
+            }
+
+            return Ok();
+        }
+
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [HttpPost]
+        public IActionResult SearchDetail(
+            [FromQuery] SearchPagedRequestDto request,
+            [FromBody] FilterAsnDetailRequestDto filter)
+        {
+            var result = _advancedShipmentNoticeService.SearchDetailAsync(request, filter);
+            return Ok(result);
+        }
+
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [HttpDelete("{id:int}")]
+        public async Task<IActionResult> DeleteAsn([FromRoute] int id)
+        {
+            await _advancedShipmentNoticeService.DeleteAsnAsync(_httpContextService.GetCurrentUserId(), id);
+            return Ok();
+        }
+
+        //[ProducesResponseType(StatusCodes.Status200OK)]
+        //[HttpPost]
+        //public async Task AddInvoice([FromBody] CreateInvoiceRequestDto request)
+        //{
+        //    await _advancedShipmentNoticeService.AddInvoiceAsync(_httpContextService.GetCurrentUserId(), request);
+        //}
+
+        //[ProducesResponseType(StatusCodes.Status200OK)]
+        //[HttpPut]
+        //public async Task UpdateInvoice([FromBody] UpdateInvoiceRequestDto request)
+        //{
+        //    await _advancedShipmentNoticeService.UpdateInvoiceAsync(_httpContextService.GetCurrentUserId(), request);
+        //}
+
+        //[ProducesResponseType(StatusCodes.Status200OK)]
+        //[HttpDelete]
+        //public async Task DeleteInvoice([FromQuery] int invoiceHeaderId)
+        //{
+        //    await _advancedShipmentNoticeService.DeleteInvoiceAsync(_httpContextService.GetCurrentUserId(), invoiceHeaderId);
+        //}
+
+        //[ProducesResponseType(StatusCodes.Status200OK)]
+        //[HttpPost]
+        //public async Task DeleteInvoiceLine([FromBody] List<int> invoiceDetailIds)
+        //{
+        //    await _advancedShipmentNoticeService.DeleteInvoiceLineAsync(_httpContextService.GetCurrentUserId(), invoiceDetailIds);
+        //}
+
+        [HttpPost]
+        public async Task<IActionResult> SearchPackingInformationPaged(
+            [FromQuery] SearchPagedRequestDto model,
+            [FromBody] FilterPackingInformationRequestDto filter)
+        {
+            var result = await _advancedShipmentNoticeService.SearchPackingInformationPaged(model, filter);
+            return Ok(result);
+        }
+
+        [HttpPost("{asnHeaderId:int}")]
+        public async Task<IActionResult> AddInvoiceForAsnAsync([FromRoute] int asnHeaderId, [FromBody] InvoiceForAsnRequestDto request)
+        {
+            await _advancedShipmentNoticeService.AddInvoiceForAsnAsync(_httpContextService.GetCurrentUserId(), asnHeaderId, request);
+            return Ok();
+        }
+
+        [HttpPost("{asnHeaderId:int}")]
+        public async Task<IActionResult> DeleteInvoiceForAsnAsync([FromRoute] int asnHeaderId, [FromBody] InvoiceForAsnRequestDto request)
+        {
+            await _advancedShipmentNoticeService.DeleteInvoiceForAsnAsync(_httpContextService.GetCurrentUserId(), asnHeaderId, request);
+            return Ok();
+        }
+
+        [HttpGet("{asnHeaderId:int}")]
+        public async Task<IActionResult> GetContainerListForASN([FromRoute] int asnHeaderId)
+        {
+            var result = await _advancedShipmentNoticeService.GetContainerListForAsnAsync(asnHeaderId);
+            return Ok(result);
+        }
+
+        [HttpPost("{asnHeaderId:int}")]
+        public async Task<IActionResult> AddContainerForASN([FromRoute] int asnHeaderId, [FromBody] CreateContainerForAsnRequestDto request)
+        {
+            var result = await _advancedShipmentNoticeService.AddContainerForAsnAsync(_httpContextService.GetCurrentUserId(), asnHeaderId, request);
+            return Ok(result);
+        }
+
+        [HttpPut("{asnHeaderId:int}")]
+        public async Task<IActionResult> UpdateContainerForASN([FromRoute] int asnHeaderId, [FromBody] UpdateContainerForAsnRequestDto request)
+        {
+            await _advancedShipmentNoticeService.UpdateContainerForAsnAsync(_httpContextService.GetCurrentUserId(), asnHeaderId, request);
+            return Ok();
+        }
+
+        [HttpDelete("{containerId:int}")]
+        public async Task<IActionResult> DeleteContainerForASN([FromRoute] int containerId)
+        {
+            await _advancedShipmentNoticeService.DeleteContainerForAsnAsync(containerId);
+            return Ok();
+        }
+
+        //[HttpPost("{asnHeaderId:int}")]
+        //public async Task<IActionResult> AddPackingForASN([FromRoute] int asnHeaderId, [FromBody] AddPackingForAsnRequestDto request)
+        //{
+        //    await _advancedShipmentNoticeService.AddPackingForAsnAsync(_httpContextService.GetCurrentUserId(), asnHeaderId, request);
+        //    return Ok();
+        //}
+
+        [HttpPut("{asnHeaderId:int}")]
+        public async Task<IActionResult> UpdatePackingForASN([FromRoute] int asnHeaderId, [FromBody] UpdatePackingForAsnRequestDto request)
+        {
+            await _advancedShipmentNoticeService.UpdatePackingForAsnAsync(_httpContextService.GetCurrentUserId(), asnHeaderId, request);
+            return Ok();
+        }
+
+        [HttpGet]
+        public IActionResult GetPackingDiscrepancyList([FromQuery] SearchPackingInfoRequestDto request)
+        {
+            var result = _advancedShipmentNoticeService.GetPackingDiscrepancyList(request);
+            return Ok(result);
+        }
+    }
+}

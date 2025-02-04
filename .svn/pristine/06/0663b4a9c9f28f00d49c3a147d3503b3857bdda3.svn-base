@@ -1,0 +1,223 @@
+﻿using System.Reflection;
+using System.Runtime.CompilerServices;
+
+namespace SERP.Application.Common.Constants
+{
+    public class ErrorCodes
+    {
+
+        #region Generic - 10000
+        public const int ValidationError = 10001;
+        public const int InternalServerError = 10002;
+        public const int ActionNotSupport = 10003;
+        public const int StatusFlagNotSupport = 10004;
+        public const int ReceivedFromDocTypeNotSupport = 10005;
+        #endregion
+
+        #region Grade - 11000
+        public const int GradeNotFound = 11001;
+        public const int GradeAlreadyExists = 11002;
+        public const int ScoresOverlapped = 11003;
+        #endregion
+
+        #region Project - 12000
+        public const int ProjectNotFound = 12001;
+        public const int ProjectAlreadyExists = 12002;
+        public const int ResultWindowOpened = 12003;
+        public const int ProjectAlreadyClosed = 12004;
+        public const int RoleAlreadyExists = 12005;
+        public const int RoleNotFound = 12006;
+        public const int ProjecRoleNotMatched = 12007;
+        public const int MemberNotFound = 12008;
+        public const int RoleAlreadyAssigned = 12009;
+        public const int RequiredField = 12010;
+        public const int RoleIsAssignedToMember = 12011;
+        public const int ProjectNotClosed = 12012;
+        #endregion
+
+        #region Template - 13000
+        public const int TemplateNotFound = 13001;
+        public const int TemplateNameAndDepartmentAlreadyExists = 13002;
+        #endregion
+
+        #region Overall Template - 13000
+        public const int OverallTemplateNotFound = 13001;
+        public const int OverallTemplateNotFoundID = 13002;
+        public const int OverallTemplateAlreadyExists = 13003;
+        public const int OverallTemplateDifferentDepartment = 13004;
+        #endregion
+
+        #region Custom view - 14000
+        public const int CustomViewNotFound = 14001;
+        public const int CustomViewAlreadyExist = 14002;
+        public const int CustomViewAttributeAlreadyExist = 14003;
+        public const int CustomViewAttributeNotFound = 14004;
+        public const int CustomViewFilterNotFound = 14005;
+        public const int CustomViewFilterAlreadyExist = 14006;
+        #endregion
+
+        #region PurchaseOrder - 15000
+        public const int PurchaseOrderNotFound = 15001;
+        public const int POFileNotFound = 15002;
+        #endregion
+
+        #region FileTracking - 16000
+        public const int FileTrackingNotFound = 16001;
+        public const int FileAlreadyExists = 16002;
+        public const int FileNameDuplicated = 16003;
+        #endregion
+
+        #region Port - 18000
+        public const int PortNotFound = 18001;
+        #endregion
+
+        #region Advanced shipment notice - 19000
+        public const int AdvancedShipmentNoticeNotFound = 19001;
+        #endregion
+
+        #region Site - 20000
+        public const int SiteNotFound = 20001;
+        public const int SiteAlreadyExists = 20002;
+        #endregion
+
+        #region Branch plant - 21000
+        public const int BranchPlantNotFound = 21001;
+        public const int BranchPlantAlreadyExists = 21002;
+        #endregion
+
+        #region Agent - 22000
+        public const int AgentNotFound = 22001;
+        public const int AgentAlreadyExists = 22002;
+        #endregion
+
+        #region Country - 23000
+        public const int CountryNotFound = 23001;
+        #endregion
+
+        #region InboundShipment
+		public const int InboundShipmentNotFound = 24001;
+        public const int InboundShipmentBLAWBNotFound = 24002;
+
+        #endregion
+
+        #region Lovs - 25000
+        public const int LovNotFound = 25001;
+        public const int LovListEmpty = 25002;
+        public const int LovReqMoreThanOneDefaultFlag = 25003;
+        public const int LovDBMoreThanOneDefaultFlag = 25004;
+        #endregion
+
+        #region ApplicationToken - 26000
+        public const int ApplicationTokenNotFound = 26001;
+        #endregion
+
+        #region Group - 27000
+        public const int GroupTypeNotFound = 27001;
+        public const int ParentGroupIDDontExist = 27002;
+        public const int ParentStatusFlagNotEnabled = 27003;
+        public const int ParentGroupTypeNotTheSame = 27004;
+        public const int GroupIDNotFound = 27005;
+        public const int GroupCodeAlreadyExist = 27006;
+        public const int GroupLevelExceedMaxGroupLevel = 27007;
+        public const int ParentGroupIdNull = 27008;
+        public const int ParentGroupNotOneLevelHigher = 27009;
+        public const int GroupTypeNotSupport = 27010;
+        public const int DeleteGroupIsParent = 27011;
+        public const int ExcelDataEmptyCode = 27012;
+        public const int ExcelDataEmptyDescription = 27013;
+        public const int ExcelDataEmptyLevel = 27014;
+        public const int ExcelDataEmptyParentGroup = 27015;
+        public const int ExcelDataEmptyStatus = 27016;
+        public const int GroupLevelExceedMaxGroupLevelInExcel = 27017;
+        public const int ParentGroupIDNotExistInExcel = 27018;
+        public const int RequestGroupLevelModification = 27019;
+        public const int RequestGroupStatusFlagModification = 27020;
+        public const int RequestMaxLevel = 27021;
+        public const int ExcelParentNotEmptyButMaxLevel = 27022;
+        public const int RequestGroupFlagErrorInExcel = 27023;
+        public const int ParentGroupFlagErrorInExcel = 27024;
+        public const int ParentGroupLevelErrorInExcel = 27025;
+        #endregion
+
+        #region Excel - 28000
+        public const int NotExcelFile = 28001;
+        public const int ExceedMaximumFileSize = 28002;
+        public const int FileNotFound = 28003;
+        public const int ImportError = 28004;
+        #endregion
+
+        #region Company - 29000
+        public const int CompanyCodeFound = 29001;
+        public const int BaseCurrencyNotFound = 29002;
+        public const int SiteIDNotFound = 29003;
+        public const int ParentIdNotFound = 29004;
+        public const int CompanyNotFound = 29005;
+        public const int DuplicatedCompanyId = 29006;
+        public const int DuplicatedCode = 29007;
+        public const int CostCenterMappingFound = 29008;
+        public const int RevenueCenterMapping = 29009;
+        public const int BranchPlantMappingFound = 29010;
+        public const int DuplicatedIdCompany = 29011;
+        public const int IdsNotFoundInDb = 29012;
+        public const int CompanyUpdateError = 29013;
+        #endregion
+
+        #region Container - 30000
+        public const int ContainerNotFound = 30001;
+        public const int ContainerStatusIsNotIncoming = 30002;
+        public const int ContainerStatusIsNotReceived = 30003;
+        public const int ContainerStatusIsNotUnloading = 30004;
+        public const int ContainerStatusIsNotUnloaded = 30005;
+        public const int ContainerNoAdyExist = 30006;
+        public const int EitherIdOrContainerNoMustHaveValue = 30007;
+        public const int ContainerStatusMustBeIncomingOrUnverified = 30008;
+        public const int ContainerFileNotFound = 30009;
+        #endregion
+
+        #region Supplier - 31000
+        public const int SupplierNotFound = 31001;
+        #endregion
+
+        #region Receiving - 32000
+        public const int CountryOfOriginNotFound = 32001;
+        public const int PODetailNotFound = 32002;
+        public const int ASNDetailNotFound = 32003;
+        public const int ReceivedQtyMoreThanOpenQty = 32004;
+        public const int PODetailCancelled = 32005;
+        public const int ASNDetailCancelled = 32006;
+        public const int ReceivingDetailNotFound = 32007;
+        public const int ReceivingDetailCancelled = 32008;
+        public const int ReceivingDetailCannotBeDeleted = 32009;
+        public const int ReceivingHeaderNotFound = 32010;
+        public const int ReceivingHeaderStatusNotMatch = 32011;
+        public const int ReceivingQtyCannotLessThanInspectedQty = 32012;
+        public const int ItemUomConversionNotFound = 32013;
+        public const int ReceivingCannotBeDeleted = 32014;
+        public const int ReceivingFileNotound = 32015;
+        #endregion
+
+        #region CostCenter - 33000
+        public const int CostCenterIDNotFound = 33001;
+        public const int CostCenterCodeAlreadyExist = 33002;
+        #endregion
+
+        #region RevenueCenter - 34000
+        public const int RevenueCenterCodeAlreadyExist = 34001;
+        public const int RevenueCenterIdNotFound = 34002;
+        #endregion
+
+        #region RevenueCenterCompanyMapping - 35000
+        public const int MappingAlreadyExist = 35001;
+        public const int MappingNotFound = 35002;
+        #endregion
+
+        #region NaturalAccount - 36000
+        public const int NaturalAccountIDNotFound = 36001;
+        public const int NaturalAccountCodeInUsed = 36002;
+        public const int NaturalAccountTypeNotFound = 36003;
+        public const int DuplicatedNaturalAccountId = 36004;
+        public const int DuplicatedNaturalAccountCode = 36005;
+        public const int ParentIdNotFoundNaturalAccount = 36006; 
+        #endregion
+    }
+}

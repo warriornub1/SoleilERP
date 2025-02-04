@@ -1,0 +1,54 @@
+﻿namespace SERP.Application.Transactions.Containers.DTOs.Response
+{
+    public class ContainerDetailResponseDto: PagedContainerResponseDto
+    {
+        public asnResponse[] asns { get; set; } = [];
+        public inboundShipmentResponse? inbound_shipment { get; set; }
+        public inboundShipmentBlawbResponse? inbound_shipment_blawb { get; set; }
+        public receivingResponse[] receivings { get; set; } = [];
+        public packingListResponse[] packingLists { get; set; } = [];
+        public List<photoResponse> container_in_photos { get; set; } = [];
+        public List<photoResponse> container_out_photos { get; set; } = [];
+        public List<photoResponse> container_unloading_photos { get; set; } = [];
+    }
+
+    public class receivingResponse
+    {
+        public int receiving_header_id { get; set; }
+        public string receiving_no { get; set; }
+    }
+    public class packingListResponse
+    {
+        public int packing_header_id { get; set; }
+        public int? asn_header_id { get; set; }
+        public string packing_list_no { get; set; }
+    }
+
+    public class asnResponse
+    {
+        public int asn_header_id { get; set; }
+        public string asn_no { get; set; }
+        public string notes_to_cargo_team { get; set; }
+    }
+    public class inboundShipmentResponse
+    {
+        public string inbound_shipment_no { get; set; }
+        public DateOnly? notice_of_arrival_date { get; set; }
+    }
+    public class inboundShipmentBlawbResponse
+    {
+        public string bl_awb_no { get; set; }
+        public string supplier_no { get; set; }
+        public string supplier_name { get; set; }
+        public int? bl_awb_total_packages { get; set; }
+        public decimal? bl_awb_total_gross_weight { get; set; }
+        public decimal? bl_awb_volume { get; set; }
+        public string bl_awb_cargo_description { get; set; }
+    }
+    public class photoResponse
+    {
+        public int file_id { get; set; }
+        public string url_path { get; set; }
+        public string? thumbnail_url_path { get; set; }
+    }
+}

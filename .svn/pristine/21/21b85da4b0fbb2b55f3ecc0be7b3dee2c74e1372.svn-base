@@ -1,0 +1,100 @@
+﻿using Microsoft.EntityFrameworkCore;
+using SERP.Application.Masters.Currencies.Interfaces;
+using SERP.Domain.Common.Constants;
+using SERP.Domain.Masters.Currencies;
+using SERP.Domain.Masters.Currencies.Model;
+using SERP.Infrastructure.Common;
+using SERP.Infrastructure.Common.DBContexts;
+using System.Linq.Expressions;
+using static SERP.Application.Common.Constants.ApplicationConstant;
+
+namespace SERP.Infrastructure.Masters.Currencies
+{
+    public class CurrencyRepository : GenericRepository<Currency>, ICurrencyRepository
+    {
+        public CurrencyRepository(ApplicationDbContext dbContext) : base(dbContext)
+        {
+        }
+
+        public async Task<List<CurrencyDetail>> GetAllLimited(bool onlyEnabled)
+        {
+            var query = from currency in _dbContext.Currency.AsNoTracking()
+                        select new CurrencyDetail
+                        {
+                            id = currency.id,
+                            currency_code = currency.currency_code,
+                            currency_description = currency.currency_description,
+                            status_flag = currency.status_flag
+                        };
+
+            if (onlyEnabled)
+            {
+                query = query.Where(x => x.status_flag.Equals(StatusFlag.Enabled));
+            }
+
+            return await query.ToListAsync();
+        }
+
+        public async Task<List<CurrencyExchangeDetail>> GetExchangeRate(int fromCurrencyId, int toCurrencyId)
+        {
+            var query = from currencyExchange in _dbContext.CurrencyExchange.AsNoTracking()
+                        join fromCurrency in _dbContext.Currency.AsNoTracking() on currencyExchange.base_currency_id equals fromCurrency.id
+                        join toCurrency in _dbContext.Currency.AsNoTracking() on currencyExchange.currency_id equals toCurrency.id
+                        where currencyExchange.base_currency_id == fromCurrencyId && currencyExchange.currency_id == toCurrencyId
+                        select new CurrencyExchangeDetail
+                        {
+                            id = currencyExchange.id,
+                            from_currency = fromCurrency.currency_description,
+                            to_currency = toCurrency.currency_description,
+                            exchange_rate = currencyExchange.exchange_rate
+                        };
+
+            return await query.ToListAsync();
+        }
+
+        public async Task<int[]> GetCurrencyAvailable(HashSet<int> currencyIDs)
+        {
+            var currencies = await _dbContext.Currency
+                .Where(x => x.status_flag == StatusFlag.Enabled && currencyIDs.Contains(x.id))
+                .Select(x => x.id).ToArrayAsync();
+
+            return currencies;
+        }
+
+        public async Task<bool> FindCurrency(int base_currency_id)
+        {
+            var currency = await _dbContext.Currency.Where(x => x.id == base_currency_id && x.status_flag == DomainConstant.StatusFlag.Enabled)
+                                                  .FirstOrDefaultAsync();
+
+            return currency == null;
+
+        }
+
+        public async Task<List<Currency>> GetCurrencyListAsync(HashSet<string> currencyCode)
+        {
+            return await _dbContext.Currency
+                .Where(x => currencyCode.Contains(x.currency_code))
+                .Select(x => new Currency
+                {
+                    id = x.id,
+                    currency_code = x.currency_code
+                }).ToListAsync();
+        }
+
+        public async Task<IEnumerable<int>> GetIdWithFlag(List<int> currencyId, string flag)
+        {
+            return await _dbContext.Currency.Where(x => currencyId.Contains(x.id) && x.status_flag == flag)
+                                            .Select(x => x.id)
+                                            .ToListAsync();
+        }
+
+        public async Task<Dictionary<string, int>> GetAllCurrencyIdDictionary(List<string?> base_currency)
+        {
+            return await _dbContext.Currency.Where(x => base_currency.Contains(x.currency_code) && x.status_flag == DomainConstant.StatusFlag.Enabled)
+                                                    .Select(x => new { x.id, x.currency_code })
+                                                    .ToDictionaryAsync(x => x.currency_code, x => x.id);
+
+        }
+
+    }
+}

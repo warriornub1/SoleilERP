@@ -1,0 +1,696 @@
+﻿using AutoMapper;
+using SERP.Application.Common;
+using SERP.Application.Common.Constants;
+using SERP.Application.Common.Exceptions;
+using SERP.Application.Transactions.Containers.DTOs.Request;
+using SERP.Application.Transactions.Containers.DTOs.Response;
+using SERP.Application.Transactions.Containers.Interfaces;
+using SERP.Application.Transactions.FilesTracking.Services;
+using SERP.Application.Transactions.InboundShipments.Interfaces;
+using SERP.Application.Transactions.PackingLists.Interfaces;
+using SERP.Application.Transactions.Receiving.Interfaces;
+using SERP.Application.Transactions.Receiving.Services;
+using SERP.Domain.Common.Constants;
+using SERP.Domain.Common.Model;
+using SERP.Domain.Transactions.Containers;
+using SERP.Domain.Transactions.Containers.Model;
+using SERP.Domain.Transactions.Receiving;
+using System.Linq.Expressions;
+using SERP.Application.Common.Dto;
+using static SERP.Application.Common.Constants.ApplicationConstant;
+using static SERP.Application.Transactions.Containers.DTOs.Request.CreateContainerRequestDto;
+using static SERP.Application.Transactions.Containers.DTOs.Request.UpdateContainerByActionRequestDto;
+using static SERP.Application.Transactions.Containers.DTOs.Request.UpdateContainerRequestDto;
+using static SERP.Domain.Common.Constants.DomainConstant;
+using static SERP.Domain.Common.Constants.DomainConstant.ContainerFiles;
+using SERP.Application.Masters.SystemKVSs.Interfaces;
+using Microsoft.Extensions.Configuration;
+using SixLabors.ImageSharp;
+using SERP.Application.Transactions.AdvancedShipmentNotices.Interfaces;
+
+namespace SERP.Application.Transactions.Containers.Services
+{
+    internal class ContainerService : IContainerService
+    {
+        private readonly string FILE_SERVER_NAME;
+        private readonly IConfiguration _configuration;
+        private readonly IContainerRepository _containerRepository;
+        private readonly IContainerAsnRepository _containerASNRepository;
+        private readonly IContainerFileRepository _containerFileRepository;
+        private readonly IFilesTrackingService _filesTrackingService;
+        private readonly IPackingHeaderRepository _packingHeaderRepository;
+        private readonly IReceivingService _receivingService;
+        private readonly IReceivingDetailRepository _receivingDetailRepository;
+        private readonly IASNHeaderRepository _asnHeaderRepository;
+        private readonly ISystemKvsRepository _systemKvsRepository;
+        private readonly IMapper _mapper;
+        private readonly IUnitOfWork _unitOfWork;
+
+        public ContainerService(
+            IContainerRepository containerRepository,
+            IContainerAsnRepository containerASNRepository,
+            IContainerFileRepository containerFileRepository,
+            IInboundShipmentBLAWBRepository inboundShipmentBlAwbRepository,
+            IFilesTrackingService filesTrackingService,
+            IPackingHeaderRepository packingHeaderRepository,
+            IReceivingService receivingService,
+            IReceivingDetailRepository receivingDetailRepository,
+            IASNHeaderRepository asnHeaderRepository,
+            ISystemKvsRepository systemKvsRepository,
+            IMapper mapper, IConfiguration configuration,
+            IUnitOfWork unitOfWork)
+        {
+            _containerRepository = containerRepository;
+            _containerASNRepository = containerASNRepository;
+            _containerFileRepository = containerFileRepository;
+            _filesTrackingService = filesTrackingService;
+            _packingHeaderRepository = packingHeaderRepository;
+            _receivingService = receivingService;
+            _receivingDetailRepository = receivingDetailRepository;
+            _asnHeaderRepository = asnHeaderRepository;
+            _systemKvsRepository = systemKvsRepository;
+
+            _configuration = configuration;
+            FILE_SERVER_NAME = _configuration["FileServerPath"];
+            _mapper = mapper;
+            _unitOfWork = unitOfWork;
+        }
+
+        public async Task<PagedResponse<PagedContainerResponseDto>> PagedFilterContainerAsync(SearchPagedRequestDto requests, PagedFilterContainerRequestDto filters)
+        {
+            if (filters.received_from != null && filters.received_to != null && filters.received_from > filters.received_to)
+            {
+                return new PagedResponse<PagedContainerResponseDto>();
+            }
+            var pageable = PagingUtilities.GetPageable(requests.Page, requests.PageSize);
+            var skipRow = PagingUtilities.GetSkipRow(pageable.Page, pageable.Size);
+
+            List<Expression<Func<ContainerDetailModel, bool>>> cond = new List<Expression<Func<ContainerDetailModel, bool>>>();
+            if (!string.IsNullOrEmpty(requests.Keyword))
+            {
+                cond.Add(x => x.container_no.Contains(requests.Keyword));
+            }
+            if (filters.received_from != null)
+            {
+                cond.Add(x => x.received_on != null && x.received_on >= filters.received_from);
+            }
+            if (filters.received_to != null)
+            {
+                cond.Add(x => x.received_on != null && x.received_on <= filters.received_to);
+            }
+            if (filters.status_list != null && filters.status_list.Count > 0)
+            {
+                cond.Add(x => filters.status_list.Contains(x.status_flag));
+            }
+            if (filters.branch_plant_list != null && filters.branch_plant_list.Count > 0)
+            {
+                cond.Add(x => x.branch_plant_id != null && filters.branch_plant_list.Contains((int)x.branch_plant_id));
+            }
+
+            var listSort = new List<Sortable>
+            {
+                new()
+                {
+                    FieldName = requests.SortBy ?? DefaultSortField.Container,
+                    IsAscending = requests.SortAscending
+                }
+            };
+
+            var orderBy = ApplySort.GetOrderByFunction<ContainerDetailModel>(listSort);
+            PagedResponseModel<ContainerDetailModel> result = await _containerRepository.SearchContainerAsync(cond, pageable, skipRow, listSort);
+
+            return new PagedResponse<PagedContainerResponseDto>
+            {
+                Items = _mapper.Map<List<PagedContainerResponseDto>>(result.Items),
+                TotalItems = result.TotalItems,
+                TotalPage = (int)Math.Ceiling(result.TotalItems / (double)pageable.Size),
+                Page = pageable.Page,
+                PageSize = pageable.Size
+            };
+        }
+
+        public async Task<ContainerDetailResponseDto?> GetByIdAsync(int id)
+        {
+            var container = await _containerRepository.GetContainerByIdAsync(id);
+
+            if (container is null)
+            {
+                throw new NotFoundException(ErrorCodes.ContainerNotFound, ErrorMessages.ContainerNotFound);
+            }
+
+            var result = _mapper.Map<ContainerDetailResponseDto>(container);
+            List<ContainerFileModel> fileList = await _containerFileRepository.GetFileInfoAsync(id);
+            foreach (var file in fileList)
+            {
+                photoResponse photo = new photoResponse
+                {
+                    file_id = file.file_id,
+                    url_path = FILE_SERVER_NAME + file.url_path,
+                    thumbnail_url_path = FILE_SERVER_NAME + file.thumbnail_url_path
+                };
+                switch (file.container_file_type)
+                {
+                    case ContainerFileType.ContainerIn:
+                        result.container_in_photos.Add(photo);
+                        break;
+                    case ContainerFileType.ContainerOut:
+                        result.container_out_photos.Add(photo);
+                        break;
+                    case ContainerFileType.ContainerUnloading:
+                        result.container_unloading_photos.Add(photo);
+                        break;
+                    default:
+                        break;
+                }
+            }
+            //result.container_in_photos = _mapper.Map<List<photoResponse>>(fileList.Where(x => x.container_file_type == ContainerFileType.ContainerIn));
+            //result.container_out_photos = _mapper.Map<List<photoResponse>>(fileList.Where(x => x.container_file_type == ContainerFileType.ContainerOut));
+            //result.container_unloading_photos = _mapper.Map<List<photoResponse>>(fileList.Where(x => x.container_file_type == ContainerFileType.ContainerUnloading));
+
+
+            return result;
+        }
+        public async Task<List<DropdownListResponseDto>> GetContainerListAsync(string bpNo, GetContainerListRequestDto request)
+        {
+            Expression<Func<Container, bool>> cond = null;
+
+            if (request.status_list != null && request.status_list.Count > 0)
+                cond = x => request.status_list.ToList().Contains(x.status_flag);
+
+            List<Container> result = await _containerRepository.GetContainerListAsync(bpNo, cond);
+
+            List<DropdownListResponseDto> list = result
+                    .Select(x => new DropdownListResponseDto
+                    {
+                        id = x.id,
+                        label = x.container_no
+                    })
+                    .ToList();
+
+            return list;
+        }
+
+        public async Task<int[]> CreateContainerAsync(string userId, List<CreateContainerRequestDto> requests)
+        {
+            await ValidateCreateRequest(requests);
+
+            try
+            {
+                _unitOfWork.BeginTransaction();
+                var containerToInsert = new List<Container>();
+
+                DateTime currentTimestamp = DateTime.Now;
+                foreach (var request in requests)
+                {
+                    var container = _mapper.Map<Container>(request);
+                    if (request.status_flag == ContainerCreateStatusFlag.Incoming)
+                        container.status_flag = DomainConstant.Containers.StatusFlag.Incoming;
+                    else if (request.status_flag == ContainerCreateStatusFlag.Unverified)
+                        container.status_flag = DomainConstant.Containers.StatusFlag.Unverified;
+                    container.created_by = userId;
+                    container.created_on = currentTimestamp;
+                    containerToInsert.Add(container);
+                }
+
+                if (containerToInsert.Count == 0) return [];
+
+                await _containerRepository.CreateRangeAsync(containerToInsert);
+                await _unitOfWork.SaveChangesAsync();
+                _unitOfWork.Commit();
+                return containerToInsert.Select(x => x.id).ToArray();
+            }
+            catch (Exception ex)
+            {
+                _unitOfWork.Rollback();
+                throw;
+            }
+        }
+
+        public async Task DeleteContainerAsync(string userId, int containerId)
+        {
+            // get container by ID
+            Container? container = await _containerRepository.GetByIdAsync(x => x.id == containerId);
+
+            // reject if container not found
+            if (container == null)
+                throw new NotFoundException(ErrorCodes.ContainerNotFound, ErrorMessages.ContainerNotFound);
+
+            // reject if container status is not Incoming and Unverified
+            if (container.status_flag != DomainConstant.Containers.StatusFlag.Incoming && container.status_flag == DomainConstant.Containers.StatusFlag.Unverified)
+                throw new BadRequestException(ErrorCodes.ContainerStatusMustBeIncomingOrUnverified, ErrorMessages.ContainerStatusMustBeIncomingOrUnverified);
+
+            await _containerRepository.DeleteAsync(container);
+            await _unitOfWork.SaveChangesAsync();
+        }
+
+        public async Task UpdateContainerByActionAsync(string userId, int bpId, string localPath, UpdateContainerByActionRequestDto request)
+        {
+            var validator = new UpdateContainerByActionRequestDtoValidator();
+            var validatorResult = await validator.ValidateAsync(request);
+            if (validatorResult.Errors.Any())
+                throw new BadRequestException(validatorResult);
+            Container? currentContainer = null;
+            int containerId = 0;
+            if (request.container_id == null)
+            {
+                Container? searchContainer = await _containerRepository.GetByIdAsync(x => x.container_no == request.container_no
+                && x.status_flag != DomainConstant.Containers.StatusFlag.Completed
+                && x.shipment_type == DomainConstant.Containers.ShipmentType.Full);
+                if (searchContainer != null) //container no already exist
+                    throw new BadRequestException(ErrorCodes.ContainerNoAdyExist, ErrorMessages.ContainerNoAdyExist, request.container_no);
+
+                if (request.DeleteFiles != null && request.DeleteFiles.Count > 0)
+                    throw new NotFoundException(ErrorCodes.ContainerFileNotFound, ErrorMessages.ContainerFileNotFound);
+            }
+            else
+            {
+                currentContainer = await _containerRepository.GetByIdAsync(x => x.id == request.container_id
+                && x.status_flag != DomainConstant.Containers.StatusFlag.Completed
+                && x.shipment_type == DomainConstant.Containers.ShipmentType.Full);
+
+                if (currentContainer == null) // container no is not found
+                    throw new NotFoundException(ErrorCodes.ContainerNotFound, ErrorMessages.ContainerNotFound);
+
+                containerId = currentContainer.id;
+                //container id found
+                //validate by action
+                switch (request.action)
+                {
+                    case ContainerUpdateAction.In:
+                        if (currentContainer.status_flag != DomainConstant.Containers.StatusFlag.Incoming && currentContainer.status_flag != DomainConstant.Containers.StatusFlag.Received)
+                            throw new BadRequestException(ErrorCodes.ContainerStatusIsNotIncoming, ErrorMessages.ContainerStatusIsNotIncoming);
+                        break;
+                    case ContainerUpdateAction.UploadSt:
+                        if (currentContainer.status_flag != DomainConstant.Containers.StatusFlag.Received)
+                            throw new BadRequestException(ErrorCodes.ContainerStatusIsNotReceived, ErrorMessages.ContainerStatusIsNotReceived);
+                        break;
+                    case ContainerUpdateAction.UploadCom:
+                        if (currentContainer.status_flag != DomainConstant.Containers.StatusFlag.Unloading)
+                            throw new BadRequestException(ErrorCodes.ContainerStatusIsNotUnloading, ErrorMessages.ContainerStatusIsNotUnloading);
+                        break;
+                    case ContainerUpdateAction.Out:
+                        if (currentContainer.status_flag != DomainConstant.Containers.StatusFlag.Unloaded)
+                            throw new BadRequestException(ErrorCodes.ContainerStatusIsNotUnloaded, ErrorMessages.ContainerStatusIsNotUnloaded);
+                        break;
+                }
+                if (request.DeleteFiles != null && request.DeleteFiles.Count > 0)
+                {
+                    var containerFiles = await _containerFileRepository.GetDictionaryAsync(x => x.container_id == request.container_id && request.DeleteFiles.Contains(x.id));
+
+                    if (containerFiles is null)
+                        throw new NotFoundException(ErrorCodes.ContainerFileNotFound, ErrorMessages.ContainerFileNotFound);
+                }
+            }
+            var deletedFilePath = new List<string>();
+            try
+            {
+                _unitOfWork.BeginTransaction();
+                DateTime currentTimeStamp = DateTime.Now;
+                string containerFileType = "";
+
+                if (request.action == ContainerUpdateAction.In)
+                {
+                    int containerDetantionDay = (int)(await _systemKvsRepository.GetSystemKvsByKeywordAsync(SystemKvsKeyword.ContainerDetentionDay)).number_value;
+                    containerFileType = ContainerFileType.ContainerIn;
+                    if (request.container_id == null)
+                    {
+                        Container newContainer = new Container();
+                        newContainer.container_no = request.container_no;
+                        newContainer.status_flag = DomainConstant.Containers.StatusFlag.Unverified;
+                        newContainer.bay_no = request.bay_no;
+                        newContainer.shipment_type = DomainConstant.Containers.ShipmentType.Full;
+                        newContainer.received_on = currentTimeStamp;
+                        newContainer.received_by = userId;
+                        newContainer.created_by = userId;
+                        newContainer.created_on = currentTimeStamp;
+                        newContainer.detention_date = currentTimeStamp.AddDays(containerDetantionDay);
+
+                        await _containerRepository.CreateAsync(newContainer);
+                        await _unitOfWork.SaveChangesAsync();
+                        containerId = newContainer.id;
+                    }
+                    else
+                    {
+                        Boolean newReceivedContainer = false;
+                        if (currentContainer.status_flag == DomainConstant.Containers.StatusFlag.Incoming)
+                        {
+                            //create Receiving
+                            // check Packing List
+                            var isPackingListExist = _packingHeaderRepository.isPackingListExist(currentContainer.id);
+                            //var packingList = await _packingListRepository.GetByIdAsync(x => x.container_id == currentContainer.id);
+                            
+
+                            var containerDetail = await _containerRepository.GetContainerByIdAsync(currentContainer.id);
+                            if (isPackingListExist) //found
+                            {
+                                //Create Receving by ASN using ContainerASN
+                                var containerASNList = await _containerASNRepository.GetDictionaryAsync(x => x.container_id == currentContainer.id);
+
+                                foreach (var containerAsn in containerASNList.Values)
+                                {
+                                    var asnHeader = await _asnHeaderRepository.GetByIdAsync(x => x.id == containerAsn.asn_header_id);
+                                    ReceivingHeader receivingHeader = new ReceivingHeader();
+                                    receivingHeader.received_on = currentTimeStamp;
+                                    receivingHeader.branch_plant_id = bpId;
+                                    int receivingHeaderId = 0;
+                                    receivingHeader.asn_header_id = asnHeader.id;
+                                    receivingHeader.supplier_id = asnHeader.supplier_id;
+                                    //Create new Receiving No in ReceivingHeader with status_flag is 11: Received and received_from_document_type is ASN.
+                                    receivingHeader.status_flag = RcvHeader.StatusFlag.Received;
+
+                                    receivingHeaderId = await _receivingService.CreateReceivingHeader(userId, _unitOfWork, receivingHeader);
+                                    var detailList = await _packingHeaderRepository.GetPackingListForReceivingDetail(currentContainer.id, asnHeader.id);
+
+                                    //get packing list detail
+                                    int lineNo = 0;
+                                    foreach (var detail in detailList)
+                                    {
+                                        ReceivingDetail rcvDetail = new ReceivingDetail();
+                                        rcvDetail.receiving_header_id = receivingHeaderId;
+                                        rcvDetail.line_no = ++lineNo;
+                                        rcvDetail.po_detail_id = detail.po_detail_id;
+                                        rcvDetail.asn_detail_id = detail.asn_detail_id;
+                                        rcvDetail.status_flag = RcvDetail.StatusFlag.Received;
+                                        rcvDetail.item_id = detail.item_id;
+                                        rcvDetail.qty = detail.qty;
+                                        rcvDetail.uom = detail.uom;
+                                        rcvDetail.po_uom = detail.po_uom;
+                                        rcvDetail.packing_header_id = detail.packing_header_id;
+                                        rcvDetail.package_no = detail.package_no;
+                                        rcvDetail.country_of_origin_id = detail.country_of_origin_id;
+                                        rcvDetail.created_by = userId;
+                                        rcvDetail.created_on = currentTimeStamp;
+
+                                        await _receivingDetailRepository.CreateAsync(rcvDetail);
+                                        await _unitOfWork.SaveChangesAsync();
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                ReceivingHeader receivingHeader = new ReceivingHeader();
+                                receivingHeader.received_on = currentTimeStamp;
+                                receivingHeader.branch_plant_id = bpId;
+                                int receivingHeaderId = 0;
+                                receivingHeader.status_flag = RcvHeader.StatusFlag.PendingPackingList;
+                                receivingHeaderId = await _receivingService.CreateReceivingHeader(userId, _unitOfWork, receivingHeader);
+                            }
+                            //currentContainer.receiving_header_id = receivingHeaderId;
+                            currentContainer.status_flag = DomainConstant.Containers.StatusFlag.Received;
+                            currentContainer.received_on = currentTimeStamp;
+                            currentContainer.received_by = userId;
+                            currentContainer.detention_date = currentTimeStamp.AddDays(containerDetantionDay);
+                        }
+                        currentContainer.bay_no = request.bay_no;
+                        currentContainer.last_modified_by = userId;
+                        currentContainer.last_modified_on = currentTimeStamp;
+
+                        await _containerRepository.UpdateAsync(currentContainer);
+                        await _unitOfWork.SaveChangesAsync();
+                    }
+                }
+                else if (request.action == ContainerUpdateAction.UploadSt)
+                {
+                    currentContainer.status_flag = DomainConstant.Containers.StatusFlag.Unloading;
+                    currentContainer.unload_start_on = currentTimeStamp;
+                    currentContainer.last_modified_by = userId;
+                    currentContainer.last_modified_on = currentTimeStamp;
+
+                    await _containerRepository.UpdateAsync(currentContainer);
+                    await _unitOfWork.SaveChangesAsync();
+                }
+                else if (request.action == ContainerUpdateAction.UploadCom)
+                {
+                    containerFileType = ContainerFileType.ContainerUnloading;
+                    currentContainer.status_flag = DomainConstant.Containers.StatusFlag.Unloaded;
+                    currentContainer.unload_end_on = currentTimeStamp;
+                    currentContainer.unloaded_by = userId;
+                    currentContainer.unload_remark = request.remark;
+                    currentContainer.no_of_packages_unloaded = request.no_of_packages_unloaded;
+                    currentContainer.last_modified_by = userId;
+                    currentContainer.last_modified_on = currentTimeStamp;
+
+                    await _containerRepository.UpdateAsync(currentContainer);
+                    await _unitOfWork.SaveChangesAsync();
+                }
+                else if (request.action == ContainerUpdateAction.Out)
+                {
+                    containerFileType = ContainerFileType.ContainerOut;
+                    currentContainer.status_flag = DomainConstant.Containers.StatusFlag.Completed;
+                    currentContainer.released_on = currentTimeStamp;
+                    currentContainer.released_by = userId;
+                    currentContainer.last_modified_by = userId;
+                    currentContainer.last_modified_on = currentTimeStamp;
+
+                    await _containerRepository.UpdateAsync(currentContainer);
+                    await _unitOfWork.SaveChangesAsync();
+                }
+                if (request.files != null)
+                {
+                    foreach (var item in request.files)
+                    {
+                        //var file = _mapper.Map<FileTrackingRequestDto>(item);
+                        //var fileTracking = await _filesTrackingService.UploadSingleFileAsync(userId, _unitOfWork, item, "CONT-PHOTO", containerFileType);
+                        var fileId = await _filesTrackingService.ProcessingAndUploadImageFileAsync(userId, localPath, _unitOfWork, item);
+                        var containerFile = new ContainerFile
+                        {
+                            created_by = userId,
+                            container_id = containerId,
+                            container_file_type = containerFileType,
+                            file_id = fileId
+                        };
+
+                        await _containerFileRepository.CreateAsync(containerFile);
+                        await _unitOfWork.SaveChangesAsync();
+                    }
+                }
+                if (request.DeleteFiles != null && request.DeleteFiles.Any())
+                {
+                    var containerFiles = await _containerFileRepository.GetDictionaryAsync(x => x.container_id == request.container_id && request.DeleteFiles.Contains(x.id));
+                    List<int> fileIds = containerFiles.Select(x => x.Value.file_id).ToList();
+                    await _filesTrackingService.RemoveFileFromFileServerAsync(_unitOfWork, fileIds);
+                    await _containerFileRepository.DeleteRangeAsync(containerFiles.Values);
+                    await _unitOfWork.SaveChangesAsync();
+                }
+                _unitOfWork.Commit();
+                // return deletedFilePath;
+            }
+            catch (Exception e)
+            {
+                _unitOfWork.Rollback();
+                throw;
+            }
+        }
+        public async Task UpdateContainerAsync(string userId, List<UpdateContainerRequestDto> requests)
+        {
+            var validator = new UpdateContainerRequestDtoListValidator();
+            var validatorResult = await validator.ValidateAsync(requests);
+            if (validatorResult.Errors.Any())
+                throw new BadRequestException(validatorResult);
+            //// - inbound_shipment_blawb_id exists in InboundShipment table
+            //var blAwbIds = requests.Where(x => x.inbound_shipment_blawb_id != null).Select(x => (int)x.inbound_shipment_blawb_id).Distinct().ToHashSet();
+            //if (blAwbIds != null && blAwbIds.Count() > 0)
+            //{
+            //    var invalidBlAwbIDs = await _inboundShipmentBlAwbRepository.CheckInvalidInboundShipmentBlAwb(blAwbIds);
+            //    if (invalidBlAwbIDs.Length > 0)
+            //    {
+            //        throw new BadRequestException(string.Format(ErrorMessages.InvalidDataFromRequest,
+            //            nameof(Container.inbound_shipment_blawb_id), string.Join(", ", invalidBlAwbIDs),
+            //            nameof(Container), nameof(DomainConstant.StatusFlag.Enabled)));
+            //    }
+            //}
+            try
+            {
+                _unitOfWork.BeginTransaction();
+                DateTime currentTimeStamp = DateTime.Now;
+                List<Container> containerList = new List<Container>();
+                foreach (var request in requests)
+                {
+                    Container? currentContainer = await _containerRepository.GetByIdAsync(x => x.id == request.container_id
+                    && x.status_flag != DomainConstant.Containers.StatusFlag.Completed);
+
+                    if (currentContainer != null) //container id found
+                    {
+                        if (request.container_no != null)
+                            currentContainer.container_no = request.container_no;
+
+                        if (request.shipment_type != null)
+                            currentContainer.container_type = request.shipment_type;
+
+                        if (request.shipment_type != null)
+                            currentContainer.container_type = request.container_type;
+
+                        if (request.weight != null)
+                            currentContainer.weight = request.weight;
+
+                        currentContainer.last_modified_by = userId;
+                        currentContainer.last_modified_on = currentTimeStamp;
+
+                        containerList.Add(currentContainer);
+                    }
+                    else // container no is not found
+                    {
+                        throw new NotFoundException(ErrorCodes.ContainerNotFound, ErrorMessages.ContainerNotFound);
+                    }
+                }
+                if (containerList.Count > 0)
+                {
+                    await _containerRepository.UpdateRangeAsync(containerList);
+                    await _unitOfWork.SaveChangesAsync();
+                }
+                _unitOfWork.Commit();
+            }
+            catch (Exception e)
+            {
+                _unitOfWork.Rollback();
+                throw;
+            }
+        }
+        //public async Task UploadFileAsync(string userId, int container_id, List<ContainerFileInfoRequestDto> request)
+        //{
+        //    var isContainerExists = await _containerRepository.GetByIdAsync(x => x.id == container_id && x.status_flag != DomainConstant.Containers.StatusFlag.Completed);
+
+        //    if (isContainerExists == null)
+        //        throw new NotFoundException(ErrorCodes.ContainerNotFound, ErrorMessages.ContainerNotFound);
+
+        //    try
+        //    {
+        //        _unitOfWork.BeginTransaction();
+        //        foreach (var item in request)
+        //        {
+        //            //var file = _mapper.Map<FileTrackingRequestDto>(item);
+        //            var fileTracking = await _filesTrackingService.UploadSingleFileAsync(userId, _unitOfWork, item, "CONT-PHOTO", item.container_file_type);
+
+        //            var containerFile = new ContainerFile
+        //            {
+        //                created_by = userId,
+        //                container_id = container_id,
+        //                container_file_type = item.container_file_type,
+        //                file_id = fileTracking.id
+        //            };
+
+        //            await _containerFileRepository.CreateAsync(containerFile);
+        //            await _unitOfWork.SaveChangesAsync();
+        //        }
+        //        _unitOfWork.Commit();
+        //    }
+        //    catch (Exception e)
+        //    {
+        //        _unitOfWork.Rollback();
+        //        throw;
+        //    }
+        //}
+
+        //public async Task<List<string>> RemoveFileAsync(RemoveContainerFileDto request)
+        //{
+        //    var isContainerExists = await _containerRepository.GetByIdAsync(x => x.id == request.container_id && x.status_flag != DomainConstant.Containers.StatusFlag.Completed);
+
+        //    if (isContainerExists == null)
+        //        throw new NotFoundException(ErrorCodes.ContainerNotFound, ErrorMessages.ContainerNotFound);
+
+        //    var containerFiles = await _containerFileRepository.GetDictionaryAsync(x => x.container_id == request.container_id && request.files.Contains(x.id));
+
+        //    if (containerFiles is null)
+        //        throw new NotFoundException(ErrorCodes.ContainerFileNotFound, ErrorMessages.ContainerFileNotFound);
+
+        //    var listFileTrackingIDs = containerFiles.Select(x => x.Value.file_id).Distinct().ToList();
+
+        //    try
+        //    {
+        //        _unitOfWork.BeginTransaction();
+
+        //        var deletedFilePath = await _filesTrackingService.RemoveFileAsync(_unitOfWork, listFileTrackingIDs);
+        //        await _containerFileRepository.DeleteRangeAsync(containerFiles.Values);
+
+        //        _unitOfWork.Commit();
+        //        return deletedFilePath;
+        //    }
+        //    catch (Exception e)
+        //    {
+        //        _unitOfWork.Rollback();
+        //        throw;
+        //    }
+        //}
+
+        #region Private Methods
+
+        private async Task ValidateCreateRequest(List<CreateContainerRequestDto> requests)
+        {
+            var validator = new CreateContainerRequestDtoListValidator();
+            var validatorResult = await validator.ValidateAsync(requests);
+            if (validatorResult.Errors.Any())
+                throw new BadRequestException(validatorResult);
+
+            //// - inbound_shipment_blawb_id exists in InboundShipment table
+
+            //var blAwbIds = requests.Where(x => x.status_flag == ContainerCreateStatusFlag.Incoming).Select(x => x.inbound_shipment_blawb_id).Distinct().ToHashSet();
+            //if (blAwbIds.Count > 0)
+            //{
+            //    var invalidBlAwbIDs = await _inboundShipmentBlAwbRepository.CheckInvalidInboundShipmentBlAwb(blAwbIds);
+            //    if (invalidBlAwbIDs.Length > 0)
+            //        throw new BadRequestException(string.Format(ErrorMessages.InvalidDataFromRequest,
+            //            nameof(Container.inbound_shipment_blawb_id), string.Join(", ", invalidBlAwbIDs),
+            //            nameof(Container), nameof(DomainConstant.StatusFlag.Enabled)));
+            //}
+
+            //var groupKey = requests.GroupBy(x => new { x.inbound_shipment_id, x.container_no },
+            //    (key, elements) => new
+            //    {
+            //        key,
+            //        Count = elements.Count()
+            //    }).ToList();
+
+            //// duplicate key from request
+            //var duplicateKey = groupKey.Where(x => x.Count > 1)
+            //    .Select(x => new { x.key.inbound_shipment_id, x.key.container_no }).ToArray();
+
+            //if (duplicateKey.Length > 0)
+            //{
+            //    var invalidKey = duplicateKey.Select(x => x.container_no).Distinct().ToArray();
+            //    throw new BadRequestException(ErrorCodes.ValidationError, string.Format(ErrorMessages.ContainerKeyAlreadyExists, string.Join(", ", invalidKey)));
+            //}
+
+            //var validKey = groupKey.Where(x => x.Count == 1)
+            //    .Select(x => new { x.key.inbound_shipment_id, x.key.container_no }).ToArray();
+
+            //// - key combination of inbound_shipment_id and container_no should not exist in Container table
+            //var parameter = Expression.Parameter(typeof(Container), "x");
+            //Expression predicate = Expression.Constant(false);
+
+            //foreach (var condition in validKey)
+            //{
+            //    //var inboundShipment = Expression.Equal(
+            //    //    Expression.Property(parameter, "inbound_shipment_id"),
+            //    //    Expression.Constant(condition.inbound_shipment_id)
+            //    //);
+
+            //    var inboundShipment = Expression.Equal(
+            //        Expression.Property(parameter, "inbound_shipment_id"),
+            //        Expression.Convert(Expression.Constant(condition.inbound_shipment_id), typeof(int?))
+            //    );
+
+            //    var containerNo = Expression.Equal(
+            //        Expression.Property(parameter, "container_no"),
+            //        Expression.Constant(condition.container_no)
+            //    );
+
+            //    var combinedCondition = Expression.AndAlso(inboundShipment, containerNo);
+            //    predicate = Expression.OrElse(predicate, combinedCondition);
+            //}
+
+            //var lambda = Expression.Lambda<Func<Container, bool>>(predicate, parameter);
+
+            //var containerKeyExisted = await _containerRepository.GetQuery()
+            //    .Where(lambda)
+            //    .Select(x => new { x.inbound_shipment_id, x.container_no })
+            //    .ToArrayAsync();
+
+            //if (containerKeyExisted.Length > 0)
+            //{
+            //    var invalidKey = duplicateKey.Select(x => $"{x.inbound_shipment_id} - {x.container_no}").ToArray();
+            //    throw new BadRequestException(ErrorCodes.ValidationError, ErrorMessages.ContainerKeyAlreadyExists, string.Join(", ", invalidKey));
+            //}
+        }
+        #endregion
+    }
+}

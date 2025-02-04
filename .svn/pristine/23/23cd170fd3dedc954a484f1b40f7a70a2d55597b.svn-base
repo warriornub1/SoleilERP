@@ -1,0 +1,12 @@
+﻿using SERP.Application.Common;
+using SERP.Domain.Finance.RevenueCenterCompanyMapping;
+
+namespace SERP.Application.Finance.RevenueCenterCompanyMappings
+{
+    public interface IRevenueCenterCompanyMappingRepository : IGenericRepository<RevenueCenterCompanyMapping>
+    {
+        Task<IEnumerable<int>> FindMapping(List<int> ids);
+        Task<IEnumerable<(int, int)>> GetMappingHits(List<(int, int)> flattenList);
+        Task<IEnumerable<RevenueCenterCompanyMapping>> GetDeleteList(List<(int, int)> flattenList);
+    }
+}

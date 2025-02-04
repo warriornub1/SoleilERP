@@ -1,0 +1,208 @@
+﻿using Microsoft.EntityFrameworkCore;
+using SERP.Domain.Finance.CompanyStructures;
+using SERP.Domain.Finance.CostCenterCompanyMapping;
+using SERP.Domain.Finance.CostCenters;
+using SERP.Domain.Finance.Groups;
+using SERP.Domain.Finance.NaturalAccounts;
+using SERP.Domain.Finance.RevenueCenterCompanyMapping;
+using SERP.Domain.Finance.RevenueCenters;
+using SERP.Domain.Masters.Agents;
+using SERP.Domain.Masters.ApplicationTokens;
+using SERP.Domain.Masters.BranchPlants;
+using SERP.Domain.Masters.Companies;
+using SERP.Domain.Masters.Countries;
+using SERP.Domain.Masters.Currencies;
+using SERP.Domain.Masters.Customers;
+using SERP.Domain.Masters.Items;
+using SERP.Domain.Masters.LOVs;
+using SERP.Domain.Masters.Ports;
+using SERP.Domain.Masters.Sites;
+using SERP.Domain.Masters.Suppliers;
+using SERP.Domain.Masters.SystemKVSs;
+using SERP.Domain.Transactions.AdvancedShipmentNotices;
+using SERP.Domain.Transactions.Containers;
+using SERP.Domain.Transactions.CustomViews;
+using SERP.Domain.Transactions.FilesTracking;
+using SERP.Domain.Transactions.InboundShipments;
+using SERP.Domain.Transactions.Invoice;
+using SERP.Domain.Transactions.PackingLists;
+using SERP.Domain.Transactions.PurchaseOrders;
+using SERP.Domain.Transactions.Receiving;
+using SERP.Domain.Transactions.SequencesTracking;
+using SERP.Infrastructure.Common.DBContexts.Config;
+
+namespace SERP.Infrastructure.Common.DBContexts
+{
+    public class ApplicationDbContext : DbContext
+    {
+        public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options)
+        {
+
+        }
+
+        protected override void ConfigureConventions(ModelConfigurationBuilder builder)
+        {
+            builder.Properties<DateOnly>()
+                .HaveColumnType("date");
+        }
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            base.OnModelCreating(modelBuilder);
+
+            modelBuilder.Entity<Item>()
+                .HasIndex(x => x.item_no).IsUnique();
+
+            modelBuilder.Entity<Supplier>()
+                .HasIndex(x => x.supplier_no).IsUnique();
+
+            //modelBuilder.Entity<SecondarySupplier>()
+            //    .HasIndex(x => new { x.supplier_id, x.sec_supplier_no }).IsUnique();
+
+            //modelBuilder.Entity<IntermediarySupplier>()
+            //    .HasIndex(x => new { x.supplier_id, x.int_supplier_id }).IsUnique();
+
+            modelBuilder.Entity<SupplierItemMapping>()
+                .HasIndex(x => new { x.supplier_id, x.item_id, x.supplier_part_no });
+
+
+            modelBuilder.Entity<SupplierGroup>()
+                .HasIndex(x => x.group_supplier_no).IsUnique();
+
+            //modelBuilder.Entity<SupplierSelfCollectSite>()
+            //    .HasIndex(x => new { x.supplier_id, x.site_id }).IsUnique();
+
+            modelBuilder.Entity<Customer>()
+                .HasIndex(x => x.customer_no).IsUnique();
+
+            modelBuilder.Entity<Site>()
+                .HasIndex(x => x.site_no).IsUnique();
+
+            modelBuilder.Entity<Port>()
+                .HasIndex(x => x.port_no).IsUnique();
+
+            modelBuilder.Entity<BranchPlant>()
+                .HasIndex(x => x.branch_plant_no).IsUnique();
+
+            modelBuilder.Entity<Company>()
+                .HasIndex(x => x.company_no).IsUnique();
+
+            modelBuilder.Entity<Agent>()
+                .HasIndex(x => x.agent_no).IsUnique();
+
+            modelBuilder.Entity<Country>()
+                .HasIndex(x => new { x.country_alpha_code_two, x.country_alpha_code_three }).IsUnique();
+
+            modelBuilder.Entity<POHeader>()
+                .HasIndex(x => x.po_no).IsUnique();
+
+            modelBuilder.Entity<ASNHeader>()
+                .HasIndex(x => x.asn_no).IsUnique();
+
+            modelBuilder.Entity<InboundShipment>()
+                .HasIndex(x => x.inbound_shipment_no).IsUnique();
+
+            modelBuilder.Entity<Container>()
+                .HasIndex(x => new { x.container_no });
+
+
+            modelBuilder.Entity<RevenueCenter>()
+                .HasIndex(x => x.revenue_center_code).IsUnique();
+
+            modelBuilder.ApplyConfiguration(new CostCenterConfig());
+            modelBuilder.ApplyConfiguration(new NaturalAccountConfig());
+            modelBuilder.ApplyConfiguration(new GroupConfig());
+            modelBuilder.ApplyConfiguration(new CompanyStructureConfig());
+
+            //modelBuilder.Entity<CostCenter>()
+            //        .HasIndex(x => x.cost_center_code).IsUnique();
+
+            //modelBuilder.Entity<Group>()
+            //    .HasIndex(x => x.group_code).IsUnique();
+
+            //modelBuilder.Entity<Group>()
+            //    .HasOne<Group>()
+            //    .WithMany()
+            //    .HasForeignKey(g => g.parent_group_id);
+            //    //.OnDelete(DeleteBehavior.Restrict); // Parent cannot be deleted if children exist
+
+            //modelBuilder.Entity<NaturalAccount>()
+            //    .HasIndex(x => x.natural_account_code).IsUnique();
+
+            //modelBuilder.Entity<NaturalAccount>()
+            //    .HasCheckConstraint("CK_NaturalAccount_NaturalAccountType",
+            //        $"natural_account_type IN ('{DomainConstant.NaturalAccount.NaturalAccountType.Asset}', " +
+            //        $"'{DomainConstant.NaturalAccount.NaturalAccountType.Liability}', " +
+            //        $"'{DomainConstant.NaturalAccount.NaturalAccountType.Shareholders_Equity}', " +
+            //        $"'{DomainConstant.NaturalAccount.NaturalAccountType.PAndL}')");
+
+            //modelBuilder.Entity<NaturalAccount>()
+            //    .HasOne<Group>() // Specifies that Group has a reference to NaturalAccount (implicitly through GroupId).
+            //    .WithMany()
+            //    .HasForeignKey(od => od.parent_group_id)
+            //    .OnDelete(DeleteBehavior.Restrict); // Parent cannot be deleted if children exist
+
+
+        }
+
+        public DbSet<Supplier> Supplier { get; set; }
+        public DbSet<SupplierItemMapping> SupplierItemMapping { get; set; }
+        public DbSet<SecondarySupplier> SecondarySupplier { get; set; }
+        public DbSet<IntermediarySupplier> IntermediarySupplier { get; set; }
+        public DbSet<Item> Item { get; set; }
+        public DbSet<Lov> Lov { get; set; }
+        public DbSet<BranchPlant> BranchPlant { get; set; }
+        public DbSet<Site> Site { get; set; }
+        public DbSet<Country> Country { get; set; }
+        public DbSet<Company> Company { get; set; }
+        public DbSet<Customer> Customer { get; set; }
+        public DbSet<CustomerShipTo> CustomerShipTo { get; set; }
+        public DbSet<CustomerSoldTo> CustomerSoldTo { get; set; }
+        public DbSet<Agent> Agent { get; set; }
+        public DbSet<Currency> Currency { get; set; }
+        public DbSet<CurrencyExchange> CurrencyExchange { get; set; }
+        public DbSet<CustomView> CustomView { get; set; }
+        public DbSet<CustomViewAttribute> CustomViewAttributes { get; set; }
+        public DbSet<POHeader> PoHeaders { get; set; }
+        public DbSet<PODetail> PoDetails { get; set; }
+        public DbSet<POFile> PoFiles { get; set; }
+        public DbSet<FileTracking> FilesTracking { get; set; }
+        //public DbSet<SalesOrder> SalesOrders { get; set; }
+        public DbSet<Port> Ports { get; set; }
+        public DbSet<SequenceTracking> SequenceTracking { get; set; }
+        public DbSet<SupplierSelfCollectSite> SupplierSelfCollectSites { get; set; }
+        public DbSet<SupplierGroup> SupplierGroups { get; set; }
+        public DbSet<SitePurpose> SitePurposes { get; set; }
+        public DbSet<AgentSite> AgentSites { get; set; }
+        public DbSet<ASNHeader> AsnHeaders { get; set; }
+        public DbSet<ASNDetail> AsnDetails { get; set; }
+        public DbSet<ASNFile> AsnFiles { get; set; }
+        public DbSet<InboundShipment> InboundShipments { get; set; }
+        public DbSet<Container> Containers { get; set; }
+        public DbSet<ContainerFile> ContainerFiles { get; set; }
+        public DbSet<InboundShipmentRequest> InboundShipmentRequests { get; set; }
+        public DbSet<InboundShipmentFile> InboundShipmentFiles { get; set; }
+        public DbSet<CustomViewFilter> CustomViewFilters { get; set; }
+        public DbSet<InboundShipmentBLAWB> InboundShipmentBLAWBs { get; set; }
+        public DbSet<ApplicationToken> ApplicationToken { get; set; }
+        public DbSet<Group> Group { get; set; }
+        public DbSet<PackingHeader> PackingHeaders { get; set; }
+        public DbSet<PackingDetail> PackingDetails { get; set; }
+        public DbSet<ReceivingHeader> ReceivingHeaders { get; set; }
+        public DbSet<ReceivingDetail> ReceivingDetails { get; set; }
+        public DbSet<ReceivingFile> ReceivingFiles { get; set; }
+        public DbSet<SystemKvs> SystemKvs { get; set; }
+        public DbSet<ItemUomConversion> ItemUomConversion { get; set; }
+        public DbSet<RevenueCenterCompanyMapping> RevenueCenterCompanyMapping { get; set; }
+        public DbSet<CostCenterCompanyMapping> CostCenterCompanyMapping { get; set; }
+        public DbSet<InvoiceHeader> InvoiceHeaders { get; set; }
+        public DbSet<InvoiceDetail> InvoiceDetails { get; set; }
+        public DbSet<InvoiceFile> InvoiceFiles { get; set; }
+        public DbSet<RevenueCenter> RevenueCenters { get; set; }
+        public DbSet<CostCenter> CostCenters { get; set; }
+        public DbSet<ASNPackingDiscrepancy> ASNPackingDiscrepancy { get; set; }
+        public DbSet<ContainerASN> ContainerASNs { get; set; }
+        public DbSet<NaturalAccount> NaturalAccounts { get; set; }
+        public DbSet<CompanyStructure> CompanyStructures { get; set; }
+    }
+}

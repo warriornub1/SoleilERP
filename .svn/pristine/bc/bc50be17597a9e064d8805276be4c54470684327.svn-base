@@ -1,0 +1,42 @@
+﻿using SERP.Domain.Common;
+using SERP.Domain.Common.Constants;
+using System.ComponentModel.DataAnnotations;
+
+namespace SERP.Domain.Transactions.InboundShipments
+{
+    public class InboundShipmentRequest : BaseModel
+    {
+        /// <summary>
+        /// ISRYYMM99999
+        /// </summary>
+        [StringLength(DomainDBLength.InboundShipmentRequest.InboundShipmentRequestNo)]
+        public string inbound_shipment_request_no { get; set; }
+        /// <summary>
+        /// ISGYYMM99999
+        /// </summary>
+        [StringLength(DomainDBLength.InboundShipmentRequest.InboundShipmentRequestGroupNo)]
+        public string? inbound_shipment_request_group_no { get; set; }
+        /// <summary>
+        /// Status Flag
+        /// 02: New
+        /// 10: Arranged
+        /// 90: Cancelled
+        /// </summary>
+        [StringLength(DomainDBLength.InboundShipmentRequest.StatusFlag)]
+
+        public string status_flag { get; set; }
+        [StringLength(DomainDBLength.InboundShipmentRequest.FreightMethod)]
+        public string freight_method { get; set; }
+        [StringLength(DomainDBLength.InboundShipmentRequest.Incoterm)]
+        public string incoterm { get; set; }
+        public DateOnly? cargo_ready_date { get; set; }
+        public DateOnly? port_of_loading_etd { get; set; }
+        public DateOnly? port_of_discharge_eta { get; set; }
+        public int? country_of_loading_id { get; set; }
+        public int? port_of_loading_id { get; set; }
+        public int? country_of_discharge_id { get; set; }
+        public int? port_of_discharge_id { get; set; }
+        [StringLength(DomainDBLength.InboundShipmentRequest.CargoDescription)]
+        public string cargo_description { get; set; }
+    }
+}

@@ -1,0 +1,16 @@
+﻿namespace SERP.Application.Transactions.AdvancedShipmentNotices.DTOs.Base
+{
+    public class AnsResponse
+    {
+        public int id { get; set; }
+        public string asn_no { get; set; }
+        public string supplier_no { get; set; }
+        public string supplier_name { get; set; }
+        //public string invoice_no { get; set; }
+        //public decimal? invoice_amt { get; set; }
+        //public decimal total_asn_amt { get; set; }
+        //public decimal? total_packages { get; set; }
+        //public decimal? total_gross_weight { get; set; }
+        //public decimal? volume { get; set; }
+    }
+}

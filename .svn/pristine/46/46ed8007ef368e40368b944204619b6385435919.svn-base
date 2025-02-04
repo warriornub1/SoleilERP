@@ -1,0 +1,47 @@
+﻿using Microsoft.EntityFrameworkCore;
+using SERP.Application.Transactions.InboundShipments.Interfaces;
+using SERP.Domain.Transactions.InboundShipments;
+using SERP.Domain.Transactions.InboundShipments.Model;
+using SERP.Infrastructure.Common;
+using SERP.Infrastructure.Common.DBContexts;
+
+namespace SERP.Infrastructure.Transactions.InboundShipments
+{
+    internal class InboundShipmentBLAWBRepository : GenericRepository<InboundShipmentBLAWB>, IInboundShipmentBLAWBRepository
+    {
+        public InboundShipmentBLAWBRepository(ApplicationDbContext dbContext) : base(dbContext)
+        {
+        }
+
+        public async Task<List<InboundShipmentBlAwbDetail>> GetBlAwbAndContainers(int inboundShipmentId)
+        {
+            var query = from blAwb in _dbContext.InboundShipmentBLAWBs
+                        where blAwb.inbound_shipment_id == inboundShipmentId
+                        select new InboundShipmentBlAwbDetail
+                        {
+                            inbound_shipment_blawb_id = blAwb.id,
+                            asn_header_id = blAwb.asn_header_id,
+                            bl_awb_no = blAwb.bl_awb_no,
+                            bl_awb_total_packages = blAwb.bl_awb_total_packages,
+                            bl_awb_total_gross_weight = blAwb.bl_awb_total_gross_weight,
+                            bl_awb_volume = blAwb.bl_awb_volume,
+                            bl_awb_cargo_description = blAwb.bl_awb_cargo_description,
+                        };
+            return await query.ToListAsync();
+        }
+
+        public async Task<int[]> CheckInvalidInboundShipmentBlAwb(HashSet<int> blAwbIds)
+        {
+            var query = await (from blAwb in _dbContext.InboundShipmentBLAWBs
+                               where blAwbIds.Contains(blAwb.id)
+                               select blAwb.inbound_shipment_id).ToArrayAsync();
+            var result = blAwbIds.Except(query);
+            return result.ToArray();
+        }
+
+        public async Task<List<InboundShipmentBLAWB>> GetBlAwbByInboundShipmentId(int inboundShipmentId)
+        {
+            return await _dbContext.InboundShipmentBLAWBs.Where(x => x.inbound_shipment_id == inboundShipmentId).ToListAsync();
+        }
+    }
+}

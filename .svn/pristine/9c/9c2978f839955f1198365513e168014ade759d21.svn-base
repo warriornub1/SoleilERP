@@ -1,0 +1,92 @@
+﻿namespace SERP.Domain.Common.Constants
+{
+    public static class DomainDBLength
+    {
+        public static class Containers
+        {
+            public const int ContainerNo = 20;
+            public const int BayNo = 5;
+            public const int StatusFlag = 2;
+            public const int ShipmentType = 1;
+            public const int ContainerType = 50;
+            public const int UserId = 50;
+            public const int UnloadRemark = 1024;
+        }
+        public static class Receiving
+        {
+            public const int ReceivingNo = 15;
+            public const int StatusFlag = 2;
+            public const int ReceivingFromDocType = 2;
+            public const int UserId = 50;
+            public const int Uom = 5;
+            public const int PackageNo = 50;
+            public const int SupplierDocType = 50;
+            public const int SupplierDocNo = 50;
+        }
+        public const int PackageNo = 50;
+        public const int MixedCartonNo = 50;
+        public const int ReceivingNo = 15;
+        public const int StatusFlag = 2;
+        public const int UserId = 50;
+        public const int Uom = 5;
+        public const int SupplierDocType = 50;
+        public const int SupplierDocNo = 50;
+        public const int PackingListNo = 25;
+        public const int ContainerNo = 20;
+        public const int BayNo = 5;
+        public const int ShipmentType = 1;
+        public const int ContainerType = 50;
+        public const int UnloadRemark = 1024;
+
+        public static class InvoiceHeader
+        {
+            public const int InvoiceNo = 20;
+            public const int StatusFlag = 2;
+            public const int VarianceReason = 1024;
+        }
+
+        public static class InvoiceDetail
+        {
+            public const int StatusFlag = 2;
+            public const int NoteToWarehouse = 255;
+        }
+
+        public static class InboundShipmentRequest
+        {
+            public const int InboundShipmentRequestNo = 15;
+            public const int InboundShipmentRequestGroupNo = 15;
+            public const int StatusFlag = 2;
+            public const int FreightMethod = 50;
+            public const int Incoterm = 50;
+            public const int CargoDescription = 50;
+            public const int ShipmentType = 1;
+            public const int HSCode = 255;
+            public const int MarkingCargo = 255;
+            public const int MarkingBL = 255;
+            public const int CollectionAddress = 255;
+
+        }
+
+        public static class CostCenter
+        {
+            public const int CostCenterCode = 4;
+            public const int CostCenterDescription = 255;
+            public const int StatusFlag = 1;
+        }
+
+        public static class RevenueCenter
+        {
+            public const int RevenueCenterCode = 3;
+            public const int RevenueCenterDescription = 255;
+            public const int StatusFlag = 1;
+        }
+
+        public static class NaturalAccountDBLength
+        {
+            public const int NaturalAccountCode = 6;
+            public const int NaturalAccountDescription = 255;
+            public const int NaturalAccountType = 50;
+            public const int StatusFlag = 1;
+        }
+    }
+}

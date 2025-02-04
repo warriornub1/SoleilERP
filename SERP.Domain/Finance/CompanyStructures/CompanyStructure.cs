@@ -1,0 +1,41 @@
+﻿using SERP.Domain.Common;
+using SERP.Domain.Common.Attributes;
+using SERP.Domain.Common.Constants;
+using System.ComponentModel.DataAnnotations;
+
+namespace SERP.Domain.Finance.CompanyStructures
+{
+    public class CompanyStructure : BaseModel
+    {
+        public int company_id { get; set; }
+        public int sequence { get; set; }
+
+        [StringLength(50)]
+        public string org_no { get; set; }
+
+        [StringLength(50)]
+        public string org_code { get; set; }
+        public bool top_flag { get; set; } = false;
+        public int? in_charge_employee_id { get; set; }
+
+        [StringLength(100)]
+        public string org_description { get; set; }
+
+        [StringLength(1)]
+        [AcceptValue(
+        DomainConstant.StatusFlag.Enabled,
+        DomainConstant.StatusFlag.Disabled
+        )]
+        public string status_flag { get; set; } = DomainConstant.StatusFlag.Enabled;
+
+        [AcceptValue(
+        DomainConstant.CompanyStructure.OrgType.Department,
+        DomainConstant.CompanyStructure.OrgType.Division,
+        DomainConstant.CompanyStructure.OrgType.Section,
+        DomainConstant.CompanyStructure.OrgType.Team
+        )]
+        public int org_type { get; set; }
+        public int? parent_id { get; set; }
+
+    }
+}

@@ -1,0 +1,64 @@
+﻿using Azure.Core;
+using Microsoft.EntityFrameworkCore;
+using SERP.Application.Finance.RevenueCenterCompanyMappings;
+using SERP.Domain.Finance.RevenueCenterCompanyMapping;
+using SERP.Infrastructure.Common;
+using SERP.Infrastructure.Common.DBContexts;
+
+namespace SERP.Infrastructure.Finance.RevenueCenterCompanyMappings
+{
+    public class RevenueCenterCompanyMappingRepository : GenericRepository<RevenueCenterCompanyMapping>, IRevenueCenterCompanyMappingRepository
+    {
+        public RevenueCenterCompanyMappingRepository(ApplicationDbContext dbContext) : base(dbContext)
+        {
+
+        }
+
+        public async Task<IEnumerable<int>> FindMapping(List<int> ids)
+        {
+            return await _dbContext.RevenueCenterCompanyMapping.Where(x => ids.Contains(x.company_id))
+                                                               .Select(x => x.company_id)
+                                                               .ToListAsync();
+        }
+
+        public async Task<IEnumerable<(int, int)>> GetMappingHits(List<(int, int)> flattenList)
+        {
+            //var query = _dbContext.RevenueCenterCompanyMapping.AsQueryable();
+
+            //foreach (var request in flattenList)
+            //{
+            //    var revenue_center_id = request.Item1;
+            //    var company_id = request.Item2;
+
+            //    query = query.Where(x => x.revenue_center_id == revenue_center_id && x.company_id == company_id);
+            //}
+
+            var revenueCenterIds = flattenList.Select(x => x.Item1).Distinct().ToList();
+            var companyIds = flattenList.Select(x => x.Item2).Distinct().ToList();
+
+
+            var query = await _dbContext.RevenueCenterCompanyMapping
+                .Where(x => revenueCenterIds.Contains(x.revenue_center_id) &&
+                            companyIds.Contains(x.company_id))
+                .ToListAsync();
+
+
+            return query.Select(x => (x.company_id, x.revenue_center_id));
+
+        }
+
+        public async Task<IEnumerable<RevenueCenterCompanyMapping>> GetDeleteList(List<(int, int)> flattenList)
+        {
+            var revenueCenterIds = flattenList.Select(x => x.Item1).Distinct().ToList();
+            var companyIds = flattenList.Select(x => x.Item2).Distinct().ToList();
+
+
+            return await _dbContext.RevenueCenterCompanyMapping
+                .Where(x => revenueCenterIds.Contains(x.revenue_center_id) &&
+                            companyIds.Contains(x.company_id)).ToListAsync();
+
+
+        }
+
+    }
+}

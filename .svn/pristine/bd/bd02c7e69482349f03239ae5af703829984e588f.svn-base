@@ -1,0 +1,38 @@
+﻿using Microsoft.EntityFrameworkCore;
+using SERP.Application.Finance.Company_Structures.Interface;
+using SERP.Domain.Finance.CompanyStructures;
+using SERP.Infrastructure.Common;
+using SERP.Infrastructure.Common.DBContexts;
+
+namespace SERP.Infrastructure.Finance.CompanyStructures
+{
+    public class CompanyStructureRepository : GenericRepository<CompanyStructure>, ICompanyStructureRepository
+    {
+        public CompanyStructureRepository(ApplicationDbContext dbContext) : base(dbContext)
+        {
+            
+        }
+
+        public async Task<IEnumerable<int>> GetCompanyStructureCodes(List<int> companyStructureId)
+        {
+            return await _dbContext.CompanyStructures.Where(x => companyStructureId.Contains(x.id))
+                                                     .Select(x => x.id)
+                                                     .ToListAsync();
+        }
+
+        public async Task<Dictionary<string, int>> GetCompanyOrgNoDic(List<string> orgNumber)
+        {
+            return await _dbContext.CompanyStructures.Where(x => orgNumber.Contains(x.org_no))
+                                                     .Select(x => new { x.org_no, x.id })
+                                                     .ToDictionaryAsync(x => x.org_no, x => x.id);
+        }
+
+        public async Task<Dictionary<int, string>> GetCompanyOrgIdDic(List<int> idNos)
+        {
+            return await _dbContext.CompanyStructures.Where(x => idNos.Contains(x.id))
+                                                     .Select(x => new { x.org_no, x.id })
+                                                     .ToDictionaryAsync(x => x.id, x => x.org_no);
+        }
+
+    }
+}

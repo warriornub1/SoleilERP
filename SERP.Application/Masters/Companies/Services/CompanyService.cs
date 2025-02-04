@@ -1,0 +1,691 @@
+﻿using AutoMapper;
+using ExcelDataReader;
+using FluentValidation;
+using Microsoft.Extensions.Logging;
+using SERP.Application.Common;
+using SERP.Application.Common.Constants;
+using SERP.Application.Common.Exceptions;
+using SERP.Application.Common.Helper;
+using SERP.Application.Finance.Groups.Interfaces;
+using SERP.Application.Masters.BranchPlants.Interfaces;
+using SERP.Application.Masters.Companies.DTOs;
+using SERP.Application.Masters.Companies.DTOs.Request;
+using SERP.Application.Masters.Companies.DTOs.Response;
+using SERP.Application.Masters.Companies.Interfaces;
+using SERP.Application.Masters.Currencies.Interfaces;
+using SERP.Application.Masters.Sites.Interfaces;
+using SERP.Domain.Common.Constants;
+using SERP.Domain.Common.Model;
+using SERP.Domain.Masters.Companies;
+using System.Text;
+using static SERP.Application.Masters.Companies.DTOs.Request.CompanyCreateRequestDto;
+using static SERP.Application.Masters.Companies.DTOs.Request.DeleteCompanyRequestsDto;
+using static SERP.Application.Masters.Companies.DTOs.Request.SearchCompanyPagedRequestModel;
+namespace SERP.Application.Masters.Companies.Services
+{
+    public class CompanyService : ICompanyService
+    {
+        private readonly ICompanyRepository _businessUnitRepository;
+        private readonly ICurrencyRepository _currencyRepository;
+        private readonly ISiteRepository _siteRepository;
+        private readonly IGroupRepository _groupRepository;
+        private readonly IBranchPlantRepository _branchPlantRepository;
+        private readonly ILogger<CompanyService> _logger;
+
+        private readonly IUnitOfWork _unitOfWork;
+        private readonly IMapper _mapper;
+
+        public CompanyService(ICompanyRepository businessUnitRepository, IUnitOfWork unitOfWork, IMapper mapper,
+            ISiteRepository siteRepository, ICurrencyRepository currencyRepository, IGroupRepository groupRepository,
+            IBranchPlantRepository branchPlantRepository,
+            ILogger<CompanyService> logger)
+        {
+            _businessUnitRepository = businessUnitRepository;
+            _siteRepository = siteRepository;
+            _currencyRepository = currencyRepository;
+            _groupRepository = groupRepository;
+            _branchPlantRepository = branchPlantRepository;
+            _unitOfWork = unitOfWork;
+            _mapper = mapper;
+            _logger = logger;
+        }
+
+        public async Task<CompanyDetailResponseDto> GetByIdAsync(int id)
+        {
+            var result = await _businessUnitRepository.GetByIdAsync(x => x.id == id);
+
+            if (result == null)
+            {
+                throw new NotFoundException(ErrorCodes.CompanyNotFound, string.Format(ErrorMessages.CompanyNotFound, nameof(id), id));
+            }
+
+            return new CompanyDetailResponseDto
+            {
+                id = result.id,
+                company_no = result.company_no,
+                company_name = result.company_name,
+                base_currency_id = result.base_currency_id,
+                status_flag = Utilities.ParseBool(result.status_flag),
+                created_by = result.created_by,
+                created_on = result.created_on,
+                last_modified_by = result.last_modified_by,
+                last_modified_on = result.last_modified_on
+
+            };
+        }
+        public async Task<List<CompanyResponseDto>> GetAllLimitedAsync(bool onlyEnabled)
+        {
+            var query = await _businessUnitRepository.GetAllLimitedAsync(onlyEnabled);
+
+            var result = query.Select(x => new CompanyResponseDto
+            {
+                id = x.id,
+                company_no = x.company_no,
+                company_name = x.company_name,
+                base_currency_id = x.base_currency_id,
+                status_flag = Utilities.ParseBool(x.status_flag)
+            }).ToList();
+
+            return result;
+        }
+        public async Task<PagedResponse<CompanyResponseModel>> GetAllPagedAsync(int page, int pageSize)
+        {
+            try
+            {
+
+                var pageable = PagingUtilities.GetPageable(page, pageSize);
+                var skipRow = PagingUtilities.GetSkipRow(pageable.Page, pageable.Size);
+                var companies = await _businessUnitRepository.GetAllAsync();
+                List<CompanyResponseModel> companyResponse = _mapper.Map<List<CompanyResponseModel>>(companies);
+                var totalRows = companies.Count();
+                if (totalRows == 0)
+                {
+                    return new PagedResponse<CompanyResponseModel>();
+                }
+                var totalPage = (int)Math.Ceiling(totalRows / (double)pageable.Size);
+                var pagedResponse = companies.Skip(skipRow).Take(pageable.Size).ToList();
+
+                return new PagedResponse<CompanyResponseModel>
+                {
+                    Items = companyResponse,
+                    TotalItems = totalRows,
+                    TotalPage = totalPage,
+                    Page = pageable.Page,
+                    PageSize = pageable.Size,
+                };
+            }
+            catch
+            {
+                throw;
+            }
+        }
+        public async Task CreateCompanyAsync(CompanyCreateRequestDto request, string userId)
+        {
+
+            // Validation Check
+            var validator = new CompanyCreateRequestDtoValidator();
+            var validatoResult = await validator.ValidateAsync(request);
+            if (validatoResult.Errors.Any())
+                throw new BadRequestException(validatoResult);
+
+            // Reject if code is exists in Company table
+            var companyCode = await _businessUnitRepository.GetByIdAsync(x => x.company_no == request.company_no);
+            if (companyCode != null)
+            {
+                throw new BadRequestException(ErrorCodes.CompanyCodeFound, string.Format(ErrorMessages.CompanyCodeFound, companyCode.company_no));
+            }
+
+            // Reject if base_currency_id is not exist in Currency table with status_flag=E
+            bool currency = await _currencyRepository.FindCurrency(request.base_currency_id);
+            if (currency)
+            {
+                throw new BadRequestException(ErrorCodes.BaseCurrencyNotFound, string.Format(ErrorMessages.BaseCurrencyNotFound, request.base_currency_id));
+            }
+
+            // Reject if registered_site_id is not exist in Site table with status_flag = E
+            bool site = await _siteRepository.FindSite(request.registered_site_id);
+            if (site)
+            {
+                throw new BadRequestException(ErrorCodes.SiteIDNotFound, string.Format(ErrorMessages.SiteIDNotFound, request.registered_site_id));
+            }
+
+            // Reject if parent_group_id is not exist in Group table with group_type=CO,status_flag=E
+            bool group = await _groupRepository.GetGroup(request.parent_group_id);
+            if (group)
+            {
+                throw new BadRequestException(ErrorCodes.SiteIDNotFound, string.Format(ErrorMessages.ParentIdNotFound, request.parent_group_id));
+            }
+
+            Company company = _mapper.Map<Company>(request);
+            company.created_by = userId;
+            company.created_on = DateTime.Now;
+
+            await _businessUnitRepository.CreateAsync(company);
+            await _unitOfWork.SaveChangesAsync();
+        }
+        public async Task<PagedResponse<CompanyPagedResponseDto>> SearchPagedAsync(int page, int pageSize, string keyword, SearchCompanyPagedRequestModel request)
+        {
+            try
+            {
+
+                // Validation Check
+                var validator = new SearchCompanyPagedRequestModelValidator();
+                var validatoResult = await validator.ValidateAsync(request);
+                if (validatoResult.Errors.Any())
+                    throw new BadRequestException(validatoResult);
+
+                var parentList = request.parentGroupList == null ? null : request.parentGroupList.Select(x => x.group_id).ToList();
+                var currencyList = request.currencyList == null ? null : request.currencyList.Select(x => x.currency_id).ToList();
+                var flagList = request.intercompanyFlagList == null ? null : request.intercompanyFlagList.Select(x => x.flag).ToList();
+                var dormantFlagList = request.dormantFlagList == null ? null : request.dormantFlagList.Select(x => x.flag).ToList();
+                var statusList = request.statusList == null ? null : request.statusList.Select(x => x.status).ToList();
+
+                var sortedCompanies = await _businessUnitRepository.CompanyFilterPaged(request.create_date_from, request.create_date_to, parentList, currencyList, flagList,
+                                                                                        dormantFlagList, statusList, keyword);
+
+                List<CompanyPagedResponseDto> companyResponse = _mapper.Map<List<CompanyPagedResponseDto>>(sortedCompanies);
+
+                var totalRows = companyResponse.Count;
+                if (totalRows == 0)
+                    return new PagedResponse<CompanyPagedResponseDto>();
+
+                var pageable = PagingUtilities.GetPageable(page, pageSize);
+                var skipRow = PagingUtilities.GetSkipRow(pageable.Page, pageable.Size);
+
+                var totalPage = (int)Math.Ceiling(totalRows / (double)pageSize);
+                var pagedReponse = companyResponse.Skip(skipRow).Take(pageable.Size).ToList();
+
+                return new PagedResponse<CompanyPagedResponseDto>
+                {
+                    Items = pagedReponse,
+                    TotalItems = totalRows,
+                    TotalPage = totalPage,
+                    Page = pageable.Page,
+                    PageSize = pageable.Size
+                };
+            }
+            catch(Exception ex)
+            {
+                throw;
+            }
+        }
+        public async Task<IEnumerable<CompanyTreeResponseDto>> GetCompanyTreeViewAsync()
+        {
+            var levelFourGroups = await _groupRepository.GetLevelFourGroup(DomainConstant.Group.GroupTypeMaxLevel.Company, DomainConstant.Group.GroupType.Company);
+
+            List<CompanyTreeResponseDto> response = new List<CompanyTreeResponseDto>();
+
+            foreach (var levelFourGroup in levelFourGroups)
+            {
+                response.Add(new CompanyTreeResponseDto
+                {
+                    group_id = levelFourGroup.id,
+                    group_code = levelFourGroup.group_code,
+                    group_description = levelFourGroup.group_description,
+                    status_flag = levelFourGroup.status_flag,
+                    level = levelFourGroup.level,
+                    child_group_list = await GetSubCompanies(levelFourGroup.id, DomainConstant.Group.GroupTypeMaxLevel.Company)
+                });
+            }
+
+            return response;
+        }
+        private async Task<List<CompanyTreeResponseDto>> GetSubCompanies(int parentId, int level)
+        {
+            var groups = await _groupRepository.GetChild(parentId, DomainConstant.Group.GroupType.Company);
+
+            if (groups.Count() == 0)
+                return null;
+
+            var result = new List<CompanyTreeResponseDto>();
+
+
+            foreach (var group in groups)
+            {
+                CompanyTreeResponseDto companyResponse = new CompanyTreeResponseDto
+                {
+                    group_id = group.id,
+                    group_code = group.group_code,
+                    group_description = group.group_description,
+                    status_flag = group.status_flag,
+                    level = group.level,
+                    child_group_list = await GetSubCompanies(group.id, level - 1)
+                };
+
+                if (group.level == 1)
+                {
+                    var companies = await _businessUnitRepository.GetCompanyViaParentID(group.id);
+                    List<CompanyList> companyLists = new List<CompanyList>();
+                    foreach (var company in companies)
+                    {
+                        companyLists.Add(new CompanyList
+                        {
+                            id = company.id,
+                            company_no = company.company_no,
+                            company_name = company.company_name,
+                            status_flag = company.status_flag,
+
+                        });
+                    }
+                    if (companyLists.Count > 0)
+                        companyResponse.company_list = companyLists;
+                }
+                result.Add(companyResponse);
+            }
+
+            return result;
+
+        }
+        public async Task UpdateCompanyAsync(List<UpdateCompanyRequestDto> requests, string userId)
+        {
+            var validator = new UpdateCompanyRequestDto.UpdateCompanyRequestDtoValidator();
+
+            foreach (var request in requests)
+            {
+                var validationResult = validator.Validate(request);
+
+                if (!validationResult.IsValid)
+                {
+                    if (validationResult.Errors.Any())
+                        throw new BadRequestException(validationResult);
+                }
+            }
+
+            // Reject if duplicated id is found in request list
+            var duplicated_id = requests.GroupBy(x => x.id)
+                                        .Where(x => x.Count() > 1)
+                                        .Select(x => x.Key)
+                                        .ToList();
+
+            if (duplicated_id.Count() > 0)
+                throw new BadRequestException(ErrorCodes.DuplicatedCompanyId, ErrorMessages.DuplicatedGroupCode);
+
+
+            // Reject if duplicated code
+            var duplicated_code = requests.GroupBy(x => x.company_no)
+                                          .Where(x => x.Count() > 1)
+                                          .Select(x => x.Key)
+                                          .ToList();
+
+            if (duplicated_code.Count() > 0)
+                throw new BadRequestException(ErrorCodes.DuplicatedCode, ErrorMessages.DuplicatedCode);
+
+            var duplicatedCompanyNo = await _businessUnitRepository.GetDuplicatedCompanyNames( requests.Select(x => (x.id, x.company_no)).ToList() );
+            var currencyId = await _currencyRepository.GetIdWithFlag( requests.Select(x => x.base_currency_id).ToList(), DomainConstant.StatusFlag.Enabled );
+            var registeredSiteId = await _siteRepository.GetIdWithFlag(requests.Select(x => x.registered_site_id).ToList());
+            var groupParentId = await _groupRepository.GetIdWithFlag(requests.Select(x => x.parent_group_id).ToList(), DomainConstant.Group.GroupType.Company, DomainConstant.StatusFlag.Enabled);
+            var companyDictionary = await _businessUnitRepository.GetCompanyIdDictionary(requests.Select(x => x.id).ToList());
+
+            List<Company> companyList = new List<Company>();
+            
+            HashSet<string> companyNoError = new HashSet<string>();
+            HashSet<int> baseCurrencyError = new HashSet<int>();
+            //HashSet<int> registeredSiteError = new HashSet<int>();
+            HashSet<int> groupParentError = new HashSet<int>();
+            HashSet<int> companyIdError = new HashSet<int>();
+            StringBuilder sb = new StringBuilder();
+
+            foreach (var request in requests)
+            {
+                // Reject if code (modified) is exists in Company table
+                if (duplicatedCompanyNo.Contains(request.company_no))
+                    companyNoError.Add(request.company_no);
+
+                // Reject if base_currency_id(modified) is not exist in Currency table with status_flag = E
+                if (!currencyId.Contains(request.base_currency_id))
+                    baseCurrencyError.Add(request.base_currency_id);
+
+                // Reject if registered_site_id(modified) is not exist in Site table with status_flag = E
+                //if (!registeredSiteId.Contains(request.registered_site_id))
+                //    registeredSiteError.Add(request.registered_site_id);
+
+                // Reject if parent_group_id(modified) is not exist in Group table with group_type = CO, status_flag = E
+                if (!groupParentId.Contains(request.parent_group_id))
+                    groupParentError.Add(request.parent_group_id);
+
+                if (!companyDictionary.ContainsKey(request.id))
+                    companyIdError.Add(request.id);
+                else
+                {
+                    var company = companyDictionary[request.id];
+                    company.id = request.id;
+                    company.company_no = request.company_no;
+                    company.company_name = request.company_name;
+                    company.base_currency_id = request.base_currency_id;
+                    company.registered_site_id = request.registered_site_id;
+                    company.parent_group_id = request.parent_group_id;
+                    company.company_registration_no = request.company_registration_no;
+                    company.gst_vat_registration_no = request.gst_vat_registration_no;
+                    company.tax_registration_no = request.tax_registration_no;
+                    company.intercompany_flag = request.intercompany_flag;
+                    company.dormant_flag = request.dormant_flag;
+                    company.status_flag = request.status_flag;
+                    company.last_modified_by = userId;
+                    company.last_modified_on = DateTime.Now;
+
+                    companyList.Add(company);
+                }
+            }
+
+            if(companyNoError.Count > 0)
+                sb.Append(string.Format(ErrorMessages.CompanyCodeFound, string.Join(", ", companyNoError)));
+
+            if (baseCurrencyError.Count > 0)
+                sb.Append(string.Format(ErrorMessages.BaseCurrencyNotFound, string.Join(", ", baseCurrencyError)));
+
+            //if (registeredSiteError.Count > 0)
+            //    sb.Append( string.Format(ErrorMessages.RegisteredSiteNotFound, string.Join(", ", registeredSiteError)));
+
+            if (groupParentError.Count > 0)
+                sb.Append(string.Format(ErrorMessages.ParentIdNotFound, string.Join(", ", groupParentError)));
+
+            if (companyIdError.Count > 0)
+                sb.Append(string.Format(ErrorMessages.IdsNotFoundInDb, string.Join(", ", companyIdError)));
+
+
+
+            if (sb.Length != 0)
+                throw new BadRequestException(ErrorCodes.CompanyUpdateError, sb.ToString());
+            else
+            {
+                await _businessUnitRepository.UpdateRangeAsync(companyList);
+                await _unitOfWork.SaveChangesAsync();
+            }
+
+        }
+        public async Task DeleteCompanyAsync(DeleteCompanyRequestsDto requests)
+        {
+
+            // Validation Check
+            var validator = new DeleteCompanyRequestsValidator();
+            var validatoResult = await validator.ValidateAsync(requests);
+            if (validatoResult.Errors.Any())
+                throw new BadRequestException(validatoResult);
+
+            var ids = requests.companyList.Select(x => x.Id).ToList();
+
+            // check for duplicated id number
+            var groupById = ids.GroupBy(x => x)
+                               .Where(x => x.Count() > 1)
+                               .Select(x => x.Key);
+
+            if (groupById.Count() > 0)
+                throw new BadRequestException(ErrorCodes.DuplicatedIdCompany, string.Format(ErrorMessages.DuplicatedIdCompany, string.Join(", ", groupById)));
+
+            // check for ids that are not in db
+            (var notFoundId, var companies) = await _businessUnitRepository.CheckForMissingId(ids);
+            if (notFoundId.Count() > 0)
+                throw new BadRequestException(ErrorCodes.IdsNotFoundInDb, string.Format(ErrorMessages.IdsNotFoundInDb, string.Join(", ", notFoundId)));
+
+
+            /*
+                Reject if the company_id is exist in CostCenterCompanyMapping, RevenueCenterComapnyMapping, BranchPlant table
+            */
+
+            var branchPlantIds = await _branchPlantRepository.FindMapping(ids);
+
+            if (branchPlantIds.Count() > 1)
+                throw new BadRequestException(ErrorCodes.BranchPlantMappingFound, string.Format(ErrorMessages.BranchPlantMappingFound, string.Join(",", branchPlantIds)));
+
+            await _businessUnitRepository.DeleteRangeAsync(companies);
+            await _unitOfWork.SaveChangesAsync();
+        }
+        public async Task<CompanyListResponseDto> GetCompanyListAsync()
+        {
+            var companies = await _businessUnitRepository.GetCompanyListDB();
+            CompanyListResponseDto response = new CompanyListResponseDto();
+
+            response.items = new List<GetCompanyList>();
+
+            foreach (var company in companies)
+            {
+                response.items.Add(new GetCompanyList
+                {
+                    id = company.id,
+                    company_no = company.company_no,
+                    company_name = company.company_name,
+                });
+            }
+            return response;
+        }
+        public async Task ImportCompanyGroupAsync(string userId, ImportCompanyRequestDto request)
+        {
+            string localFilePath = "";
+
+            try
+            {
+
+                if (!FileHelper.IsExcelFile(request.File.ContentType))
+                    throw new BadRequestException(ErrorCodes.NotExcelFile, ErrorMessages.NotExcelFile);
+
+
+                if (request.File.Length > ApplicationConstant.Settings.MaximumFileSize)
+                    throw new BadRequestException(ErrorCodes.ExceedMaximumFileSize, ErrorMessages.ExceedMaximumFileSize);
+
+                var currentTime = DateTime.Now;
+                localFilePath = $"App_Data/file-uploads/{currentTime.Year}/{currentTime.Month}/{currentTime.Day}/";
+                await FileHelper.SaveFileToTemporaryFolder(request.File, request.File.FileName, localFilePath);
+                var inputFilePath = Path.Combine(localFilePath, request.File.FileName);
+                List<CompanyExcelDto> excelData = await ReadExcelDataGroup(inputFilePath);
+                (List<Company> createList, List<Company> updateList) = await validateExcelData(userId, excelData);
+
+                if (createList.Count > 0)
+                    await _businessUnitRepository.CreateRangeAsync(createList);
+
+                if (updateList.Count > 0)
+                    await _businessUnitRepository.UpdateRangeAsync(updateList);
+
+                await _unitOfWork.SaveChangesAsync();
+
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, e.Message);
+                throw;
+            }
+            finally
+            {
+                if (!string.IsNullOrEmpty(localFilePath))
+                    Directory.Delete(localFilePath, true);
+            }
+        }
+        public async Task<byte[]> GetCompanyTemplateAsync(string webRootPath)
+        {
+            string filePath = Path.Combine(webRootPath, ApplicationConstant.wwwRootFileName.Company);
+            if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath))
+                throw new BadRequestException(ErrorCodes.FileNotFound, ErrorMessages.FileNotFound);
+
+            byte[] fileBytes = await File.ReadAllBytesAsync(filePath);
+            return fileBytes;
+        }
+        private async Task<List<CompanyExcelDto >> ReadExcelDataGroup(string inputFilePath)
+        {
+            List<CompanyExcelDto> excelData = new List<CompanyExcelDto>();
+
+            await using (var stream = File.Open(inputFilePath, FileMode.Open, FileAccess.Read))
+            {
+                using (var reader = ExcelReaderFactory.CreateReader(stream))
+                {
+                    var rowIndex = 1;
+                    reader.Read();
+                    while (reader.Read())
+                    {
+                        if (rowIndex != 0)
+                        {
+                            CompanyExcelDto rowData = new CompanyExcelDto();
+                            rowData.company_No = reader.IsDBNull(0) ? null : reader.GetValue(0).ToString();
+                            rowData.company_Name = reader.IsDBNull(1) ? null : reader.GetValue(1).ToString();
+                            rowData.parentGroup = reader.IsDBNull(2) ? null : reader.GetValue(2).ToString();
+                            rowData.baseCurrency = reader.IsDBNull(3) ? null : reader.GetValue(3).ToString();
+                            rowData.registered_site_no = reader.IsDBNull(4) ? null : reader.GetValue(4).ToString();
+                            rowData.company_registration_no = reader.IsDBNull(5) ? null : reader.GetValue(5).ToString();
+                            rowData.gst_vat_registration_no = reader.IsDBNull(6) ? null : reader.GetValue(6).ToString();
+                            rowData.tax_registration_no = reader.IsDBNull(7) ? null : reader.GetValue(7).ToString();
+                            rowData.intercompany_flag = reader.IsDBNull(8) ? null : reader.GetValue(8).ToString();
+                            rowData.dormant_flag = reader.IsDBNull(9) ? null : reader.GetValue(9).ToString();
+                            rowData.status_flag = reader.IsDBNull(10) ? null : reader.GetValue(10).ToString();
+                            excelData.Add(rowData);
+                        }
+                    }
+                }
+            }
+            return excelData;
+
+        }
+        private async Task<(List<Company>, List<Company>)> validateExcelData(string userId, List<CompanyExcelDto> excelData)
+        {
+            try
+            {
+                int row = 1;
+                StringBuilder sb = new StringBuilder();
+                HashSet<int> missingDataRow = new HashSet<int>();
+                HashSet<int> parentGroupError = new HashSet<int>();
+                HashSet<int> baseCurrencyError = new HashSet<int>();
+                HashSet<int> siteNoError = new HashSet<int>();
+                HashSet<int> intercompanyError = new HashSet<int>();
+                HashSet<int> dormantError = new HashSet<int>();
+                HashSet<int> statusFlagError = new HashSet<int>();
+                HashSet<int> baseCurrencyCompanyError = new HashSet<int>();
+
+                List<Company> createList = new List<Company>();
+                List<Company> updateList = new List<Company>();
+
+                var parentGroupList = excelData.Where(x => x.parentGroup != null)
+                                               .Select(x => x.parentGroup)
+                                               .ToList();
+
+                var baseCurrencyList = excelData.Where(x => x.baseCurrency != null)
+                                                .Select(x => x.baseCurrency)
+                                                .ToList();
+
+                var registered_site_no_List = excelData.Where(x => x.registered_site_no != null)
+                                                       .Select(x => x.registered_site_no)
+                                                       .ToList();
+
+                var company_No_List = excelData.Where(x => x.company_No != null)
+                                               .Select(x => x.company_No)
+                                               .ToList();
+
+                var GetIDByParentGroupNo = await _groupRepository.GetIDByParentGroupNo(parentGroupList, DomainConstant.Group.GroupType.Company);
+                var base_currency_ids = await _currencyRepository.GetAllCurrencyIdDictionary(baseCurrencyList);
+                //var site_id_Dictionary = await _siteRepository.GetSiteIDDictionary(registered_site_no_List);
+                var companyDictionary = await _businessUnitRepository.GetCompanyNoDictionary(company_No_List);
+                var branchPlant_ids = await _branchPlantRepository.GetBranchPlantId(companyDictionary.Values.Select(x => x.id).ToList());
+                //var parentGroupIdDictionary = await _groupRepository.GetParentGroupId(parentGroupList);
+
+                foreach (var data in excelData)
+                {
+                    if (data.company_No is null || data.company_No == null || 
+                        data.company_Name is null || data.company_Name == null ||
+                        data.parentGroup is null || data.parentGroup == null || 
+                        data.baseCurrency is null || data.baseCurrency == null ||
+                        data.company_registration_no is null || data.company_registration_no == null || 
+                        data.intercompany_flag is null || data.intercompany_flag == null || 
+                        data.dormant_flag is null || data.dormant_flag == null || 
+                        data.status_flag is null || data.status_flag == null)
+                    {
+                        missingDataRow.Add(row);
+                    }
+
+                    // Reject if parent_group_no is not exist in Group table with group_type=CO, status_flag=E
+                    if (!GetIDByParentGroupNo.Keys.Contains(data.parentGroup))
+                        parentGroupError.Add(row);
+
+                    // Reject if base_currency is not exist in Currency table with status_flag=E
+                    if (!base_currency_ids.ContainsKey(data.baseCurrency))
+                        baseCurrencyError.Add(row);
+
+                    // Reject if site_no is not exist in Site table with status_flag=E
+                    //if (data.registered_site_no != null && !site_id_Dictionary.ContainsKey(data.registered_site_no))
+                    //    siteNoError.Add(row);
+
+                    // Reject if intercompany_flag is not Y and N
+                    if (!(data.intercompany_flag == DomainConstant.StatusFlag.YesChar || data.intercompany_flag == DomainConstant.StatusFlag.NoChar))
+                        intercompanyError.Add(row);
+
+                    // Reject if dormant_flag is not Y and N
+                    if (!(data.dormant_flag == DomainConstant.StatusFlag.YesChar || data.dormant_flag == DomainConstant.StatusFlag.NoChar))
+                        dormantError.Add(row);
+
+                    // Reject if status_flag is not E and D
+                    if (!(data.status_flag == DomainConstant.StatusFlag.Enabled || data.status_flag == DomainConstant.StatusFlag.Disabled))
+                        statusFlagError.Add(row);
+                    row++;
+                }
+
+                if(missingDataRow.Count > 0)
+                    sb.Append( string.Format(ErrorMessages.MissingDataRow, string.Join(", ", missingDataRow)) );
+
+                if (parentGroupError.Count > 0)
+                    sb.Append( string.Format(ErrorMessages.ParentGroupError, string.Join(", ", parentGroupError)) );
+
+                if (baseCurrencyError.Count > 0)
+                    sb.Append( string.Format(ErrorMessages.BaseCurrencyError, string.Join(", ", baseCurrencyError)) );
+
+                if (siteNoError.Count > 0)
+                    sb.Append( string.Format(ErrorMessages.SiteNoError, string.Join(", ", siteNoError)) );
+
+                if (intercompanyError.Count > 0)
+                    sb.Append(string.Format(ErrorMessages.IntercompanyError, string.Join(", ", intercompanyError)));
+
+                if (dormantError.Count > 0)
+                    sb.Append(string.Format(ErrorMessages.DormantFlagError, string.Join(", ", dormantError)));
+
+                if (statusFlagError.Count > 0)
+                    sb.Append(string.Format(ErrorMessages.SiteFlagError, string.Join(", ", statusFlagError)));
+
+                if (sb.Length != 0)
+                    throw new BadRequestException(ErrorCodes.ImportError, sb.ToString());
+
+
+                foreach(var data in excelData)
+                {
+                    if (companyDictionary.ContainsKey(data.company_No))
+                    {
+
+                        companyDictionary[data.company_No].company_no = data.company_No;
+                        companyDictionary[data.company_No].company_name = data.company_Name;
+                        companyDictionary[data.company_No  ].base_currency_id = base_currency_ids[data.baseCurrency];
+                        companyDictionary[data.company_No].parent_group_id = GetIDByParentGroupNo[data.parentGroup];
+                        //companyDictionary[data.company_No].registered_site_id = site_id_Dictionary[data.registered_site_no];
+                        companyDictionary[data.company_No].company_registration_no = data.company_registration_no;
+                        companyDictionary[data.company_No].gst_vat_registration_no = data.gst_vat_registration_no;
+                        companyDictionary[data.company_No].tax_registration_no = data.tax_registration_no;
+                        companyDictionary[data.company_No].intercompany_flag = data.intercompany_flag == DomainConstant.StatusFlag.YesChar ? true : false;
+                        companyDictionary[data.company_No].dormant_flag = data.dormant_flag == DomainConstant.StatusFlag.YesChar ? true : false;
+                        companyDictionary[data.company_No].status_flag = data.status_flag;
+                        companyDictionary[data.company_No].last_modified_by = userId;
+                        companyDictionary[data.company_No].last_modified_on = DateTime.Now;
+
+                        updateList.Add(companyDictionary[data.company_No]);
+                    }
+                    else
+                    {
+                        createList.Add(new Company
+                        {
+                            company_no = data.company_No,
+                            company_name = data.company_Name,
+                            base_currency_id = base_currency_ids[data.baseCurrency],
+                            parent_group_id = GetIDByParentGroupNo[data.parentGroup],
+                            //registered_site_id = site_id_Dictionary[data.registered_site_no],
+                            company_registration_no = data.company_registration_no,
+                            gst_vat_registration_no = data.gst_vat_registration_no,
+                            tax_registration_no = data.tax_registration_no,
+                            intercompany_flag = data.intercompany_flag == DomainConstant.StatusFlag.YesChar ? true : false,
+                            dormant_flag = data.dormant_flag == DomainConstant.StatusFlag.YesChar ? true : false,
+                            status_flag = data.status_flag,
+                            created_by = userId,
+                            created_on = DateTime.Now
+                        });
+                    }
+                }
+                return (createList, updateList);
+            }
+            catch
+            {
+                throw;
+            }
+
+        }
+    }
+}

@@ -1,0 +1,156 @@
+﻿using Microsoft.EntityFrameworkCore;
+using SERP.Application.Common;
+using SERP.Application.Transactions.Receiving.Interfaces;
+using SERP.Domain.Common.Constants;
+using SERP.Domain.Common.Model;
+using SERP.Domain.Transactions.Receiving;
+using SERP.Domain.Transactions.Receiving.Model;
+using SERP.Infrastructure.Common;
+using SERP.Infrastructure.Common.DBContexts;
+using System.Linq.Expressions;
+
+namespace SERP.Infrastructure.Transactions.Receiving
+{
+    internal class ReceivingHeaderRepository : GenericRepository<ReceivingHeader>, IReceivingHeaderRepository
+    {
+        public ReceivingHeaderRepository(ApplicationDbContext dbContext) : base(dbContext)
+        {
+        }
+        public async Task<PagedResponseModel<ReceivingInfoModel>> SearchReceivingAsync(List<Expression<Func<ReceivingInfoModel, bool>>> filters, string keyword, List<int>? supplierId, PagingUtilities pageable, int skipRow, List<Sortable> sortBy)
+        {
+            var query = (from rcvHeader in _dbContext.ReceivingHeaders
+                         join branchPlant in _dbContext.BranchPlant on rcvHeader.branch_plant_id equals branchPlant.id
+                         join container in _dbContext.Containers on rcvHeader.id equals container.receiving_header_id into containerGroup
+                         from container in containerGroup.DefaultIfEmpty() // Left join
+                         join supplier in _dbContext.Supplier on rcvHeader.supplier_id equals supplier.id into supplierGroup
+                         from supplier in supplierGroup.DefaultIfEmpty() where supplier == null || supplierId == null || !supplierId.Any() || supplierId.Contains(supplier.id)
+
+                         select new ReceivingInfoModel
+                         {
+                             receiving_header_id = rcvHeader.id,
+                             receiving_no = rcvHeader.receiving_no,
+                             status_flag = rcvHeader.status_flag,
+                             branch_plant = branchPlant.branch_plant_no,
+                             container_no = container.container_no,
+                             received_on = rcvHeader.received_on,
+                             unloaded_started = container.unload_start_on,
+                             unloaded_end = container.unload_end_on,
+                             unloaded_by = container.unloaded_by,
+                             inspector_assigned_on = rcvHeader.inspector_assigned_on,
+                             inspection_start_on = rcvHeader.inspection_start_on,
+                             inspection_end_on = rcvHeader.inspection_end_on,
+                             inspection_due_date = rcvHeader.inspection_due_date,
+                             inspected_by = rcvHeader.inspected_by,
+                             lot_label_required_flag = _dbContext.ReceivingDetails
+                                                        .Where(detail => detail.receiving_header_id == rcvHeader.id)
+                                                        .Join(_dbContext.Item, // Join with Item
+                                                              detail => detail.item_id,
+                                                              item => item.id,
+                                                              (detail, item) => item) // Project into item
+                                                        .Any(item => item.label_required_flag),
+                             total_packages = _dbContext.ReceivingDetails
+                                               .Where(x => x.receiving_header_id == rcvHeader.id).Select(x => x.package_no)
+                                               .Distinct().Count(),
+                             total_packages_unloaded = 0,
+                             no_of_items = _dbContext.ReceivingDetails
+                                               .Where(x => x.receiving_header_id == rcvHeader.id).Select(x => x.item_id)
+                                               .Distinct().Count(),
+                             notes_to_warehouse_flag = _dbContext.ReceivingDetails
+                                                        .Where(detail => detail.receiving_header_id == rcvHeader.id)
+                                                        .Join(_dbContext.PoDetails,
+                                                        receivingDetail => receivingDetail.po_detail_id,
+                                                        poDetail => poDetail.id,
+                                                        (receivingDetail, poDetail) => poDetail)
+                                                        .Where(poDetail => poDetail.status_flag != DomainConstant.PurchaseOrderDetail.StatusFlag.Cancelled)
+                                                    .Any(poDetail => poDetail.notes_to_warehouse != null && !string.IsNullOrEmpty(poDetail.notes_to_warehouse)),
+                             pos = (from receivingDetail in _dbContext.ReceivingDetails
+                                    join poDetail in _dbContext.PoDetails on receivingDetail.po_detail_id equals poDetail.id
+                                    join poHeader in _dbContext.PoHeaders on poDetail.po_header_id equals poHeader.id
+                                    where string.IsNullOrEmpty(keyword) || keyword.Contains(poHeader.po_no)
+                                    select new ReceivingPos
+                                    {
+                                        po_header_id = poHeader.id,
+                                        po_no = poHeader.po_no
+                                    }).Distinct().ToArray(),
+                             brands = (from receivingDetail in _dbContext.ReceivingDetails
+                                       join items in _dbContext.Item on receivingDetail.item_id equals items.id
+                                       select items.brand).Distinct().ToList(),
+                             created_by = rcvHeader.created_by,
+                             created_on = rcvHeader.created_on,
+                             last_modified_by = rcvHeader.last_modified_by,
+                             last_modified_on = rcvHeader.last_modified_on,
+                             asns = (from rcvAsn in _dbContext.ReceivingASNs
+                                     join asn in _dbContext.AsnHeaders on rcvAsn.asn_header_id equals asn.id
+                                     where rcvHeader.id == rcvAsn.receiving_header_id
+                                     select new ReceivingAsns
+                                     {
+                                         asn_header_id = asn.id,
+                                         asn_no = asn.asn_no
+                                     }).Distinct().ToArray(),
+                             suppliers = container == null ? new []
+                             {
+                                 new ReceivingSupplier
+                                 {                  
+                                    supplier_id = supplier.id,
+                                    supplier_name = supplier.supplier_name,
+                                    supplier_no = supplier.supplier_no 
+                                 }
+                             } :
+                             (from rcvAsn in _dbContext.ReceivingASNs
+                              join asn in _dbContext.AsnHeaders on rcvAsn.asn_header_id equals asn.id
+                              join asnSupplier in _dbContext.Supplier on asn.supplier_id equals asnSupplier.id
+                              where rcvHeader.id == rcvAsn.receiving_header_id && 
+                              (supplierId == null || !supplierId.Any() || supplierId.Contains(asnSupplier.id))
+                              select new ReceivingSupplier
+                              {
+                                  supplier_id = asnSupplier.id,
+                                  supplier_name = asnSupplier.supplier_name,
+                                  supplier_no = asnSupplier.supplier_no
+                              }).Distinct().ToArray(),
+                             // asn_header_id = container.asn_header_id == null ? null : asn.id,
+                             //  asn_no = container.asn_header_id == null ? null : asn.asn_no
+                         });
+
+            if (filters.Any())
+            {
+                foreach (var condition in filters)
+                {
+                    query = query.Where(condition);
+                }
+            }
+            int totalRows = await query.CountAsync();
+            if (totalRows == 0)
+            {
+                return new PagedResponseModel<ReceivingInfoModel>();
+            }
+
+            var orderBy = ApplySort.GetOrderByFunction<ReceivingInfoModel>(sortBy);
+
+            var totalPage = (int)Math.Ceiling(totalRows / (pageable.Size * 1.0));
+            var pagedResponse = await orderBy((IQueryable<ReceivingInfoModel>)query).Skip(skipRow).Take(pageable.Size).ToListAsync();
+
+            return new PagedResponseModel<ReceivingInfoModel>
+            {
+                Items = pagedResponse,
+                TotalItems = totalRows
+            };
+        }
+        public async Task<List<ReceivingHeader>> GetReceivingListAsync(Expression<Func<ReceivingHeader, bool>> filter)
+        {
+            var query = from header in _dbContext.ReceivingHeaders
+                        select new ReceivingHeader
+                        {
+                            id = header.id,
+                            receiving_no = header.receiving_no,
+                            status_flag = header.status_flag,
+                        };
+            if (filter != null)
+                query = query.Where(filter);
+
+            query = query.OrderBy(x => x.receiving_no);
+            var result = await query.ToListAsync();
+            return result;
+        }
+
+    }
+}

@@ -1,0 +1,40 @@
+﻿using SERP.Domain.Common.Attributes;
+using SERP.Domain.Common.Constants;
+using static SERP.Domain.Common.Constants.DomainConstant;
+using System.ComponentModel.DataAnnotations;
+
+namespace SERP.Application.Transactions.InboundShipments.DTOs.Request
+{
+    public class ShipmentInfoRequestDto
+    {
+        [AcceptValue(DomainConstant.AdvancedShipmentNotices.BlAwbProvider.NotAvailable,
+            DomainConstant.AdvancedShipmentNotices.BlAwbProvider.No,
+            DomainConstant.AdvancedShipmentNotices.BlAwbProvider.Yes)]
+        public string bl_awb_provided { get; set; }
+        public string? freight_method { get; set; }
+        public string? incoterm { get; set; }
+        public int? country_of_loading_id { get; set; }
+        public int? port_of_loading_id { get; set; }
+        public int? country_of_discharge_id { get; set; }
+        public int? port_of_discharge_id { get; set; }
+        public DateOnly? cargo_ready_date { get; set; }
+        [AcceptValue(InboundShipmentsRequest.ShipmentType.Full,
+            InboundShipmentsRequest.ShipmentType.Loose)]
+        public string? shipment_type { get; set; }
+        [StringLength(DomainDBLength.InboundShipmentRequest.HSCode)]
+        public string? hs_code { get; set; }
+        public int? total_packages { get; set; }
+        public decimal? total_gross_weight { get; set; }
+        public decimal? volume { get; set; }
+        [StringLength(DomainDBLength.InboundShipmentRequest.MarkingCargo)]
+        public string? marking_cargo { get; set; }
+        [StringLength(DomainDBLength.InboundShipmentRequest.MarkingBL)]
+        public string? marking_bl { get; set; }
+        [StringLength(DomainDBLength.InboundShipmentRequest.CollectionAddress)]
+        public string? collection_address { get; set; }
+        [StringLength(DomainDBLength.InboundShipmentRequest.CargoDescription)]
+        public string? cargo_description { get; set; }
+        public string? inbound_shipment_request_group_no { get; set; }
+        public bool new_shipment_group_flag { get; set; }
+    }
+}

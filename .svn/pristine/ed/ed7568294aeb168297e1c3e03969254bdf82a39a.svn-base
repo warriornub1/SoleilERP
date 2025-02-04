@@ -1,0 +1,38 @@
+﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using SERP.Domain.Common.Constants;
+using SERP.Domain.Finance.CompanyStructures;
+using SERP.Domain.Finance.CostCenters;
+using SERP.Domain.Finance.Groups;
+
+namespace SERP.Infrastructure.Common.DBContexts.Config
+{
+    public class CostCenterConfig : IEntityTypeConfiguration<CostCenter>
+    {
+        public void Configure(EntityTypeBuilder<CostCenter> builder) 
+        {
+            var validStatusTypes = new[]
+{
+                DomainConstant.StatusFlag.Enabled,
+                DomainConstant.StatusFlag.Disabled
+            };
+
+            builder.HasOne<CompanyStructure>()
+                   .WithMany()
+                   .HasForeignKey(x => x.company_structure_id)
+                   .OnDelete(DeleteBehavior.Cascade);
+
+            builder.HasOne<Group>() // Group .id 
+                   .WithMany()
+                   .HasForeignKey(g => g.parent_group_id) 
+                   .OnDelete(DeleteBehavior.Cascade);
+
+            builder.HasIndex(x => x.cost_center_code)
+                   .IsUnique();
+
+            builder.HasCheckConstraint("CK_CostCenter_StatusFlag",
+                $"status_flag IN ({string.Join(", ", validStatusTypes.Select(t => $"'{t}'"))})");
+
+        }
+    }
+}

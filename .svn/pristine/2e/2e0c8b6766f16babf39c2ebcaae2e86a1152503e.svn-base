@@ -1,0 +1,12 @@
+﻿using SERP.Application.Common;
+using SERP.Domain.Finance.CompanyStructures;
+
+namespace SERP.Application.Finance.Company_Structures.Interface
+{
+    public interface ICompanyStructureRepository : IGenericRepository<CompanyStructure>
+    {
+        Task<IEnumerable<int>> GetCompanyStructureCodes(List<int> companyStructureId);
+        Task<Dictionary<string, int>> GetCompanyOrgNoDic(List<string> orgNumber);
+        Task<Dictionary<int, string>> GetCompanyOrgIdDic(List<int> idNos);
+    }
+}

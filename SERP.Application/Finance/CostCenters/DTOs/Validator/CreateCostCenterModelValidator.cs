@@ -1,0 +1,25 @@
+﻿using FluentValidation;
+using SERP.Application.Finance.CompanyStructures.Interface;
+using SERP.Application.Finance.CostCenters.DTOs.Request;
+using SERP.Application.Finance.CostCenters.Interface;
+using SERP.Application.Finance.Groups.Interfaces;
+
+namespace SERP.Application.Finance.CostCenters.DTOs.Validator
+{
+    public class CreateCostCenterModelValidator : AbstractValidator<CreateCostCenterRequestModel>
+    {
+        private readonly ICompanyStructureRepository _companyStructureRepository;
+        private readonly ICostCenterRepository _costCenterRepository;
+        private readonly IGroupRepository _groupRepository;
+
+        public CreateCostCenterModelValidator(ICompanyStructureRepository companyStructureRepository, ICostCenterRepository costCenterRepository, IGroupRepository groupRepository)
+        {
+            _companyStructureRepository = companyStructureRepository;
+            _costCenterRepository = costCenterRepository;
+            _groupRepository = groupRepository;
+
+            Include(new BaseCostCenterValidator());
+            Include(new ICostCenterDtoValidator(_companyStructureRepository, _costCenterRepository, _groupRepository));
+        }
+    }
+}

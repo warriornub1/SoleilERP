@@ -1,0 +1,1054 @@
+﻿using AutoMapper;
+using ExcelDataReader;
+using FluentValidation;
+using SERP.Application.Common;
+using SERP.Application.Common.Constants;
+using SERP.Application.Common.Exceptions;
+using SERP.Application.Common.Helper;
+using SERP.Application.Finance.CompanyStructures.Interface;
+using SERP.Application.Finance.CostCenters.DTOs;
+using SERP.Application.Finance.CostCenters.DTOs.Request;
+using SERP.Application.Finance.CostCenters.DTOs.Response;
+using SERP.Application.Finance.CostCenters.DTOs.Validator;
+using SERP.Application.Finance.CostCenters.Interface;
+using SERP.Application.Finance.Groups.Interfaces;
+using SERP.Application.Finance.RevenueCenters.DTOs.Request;
+using SERP.Domain.Common.Constants;
+using SERP.Domain.Common.Model;
+using SERP.Domain.Finance.CostCenters;
+using SERP.Domain.Finance.CostCenters.Model;
+using System.Text;
+using static SERP.Domain.Common.Constants.DomainDBLength;
+using CostCenter = SERP.Domain.Finance.CostCenters.CostCenter;
+
+namespace SERP.Application.Finance.CostCenters.Services
+{
+    public class CostCenterService : ICostCenterService
+    {
+        private readonly IUnitOfWork _unitOfWork;
+        private readonly ICostCenterRepository _costCenterRepository;
+        private readonly IGroupRepository _groupRepository;
+        private readonly ICompanyStructureRepository _companyStructureRepository;
+        private readonly IMapper _mapper;
+        public CostCenterService(IUnitOfWork unitOfWork, ICostCenterRepository costCenterRepository, IMapper mapper,
+            IGroupRepository groupRepository, ICompanyStructureRepository companyStructureRepository) 
+        {
+            _unitOfWork = unitOfWork;
+            _costCenterRepository = costCenterRepository;
+            _groupRepository = groupRepository;
+            _companyStructureRepository = companyStructureRepository;
+            _mapper = mapper;
+        }
+
+        public async Task<PagedResponse<CostCenterResponseModel>> GetAllPagedAsync(int page, int pageSize)
+        {
+            try
+            {
+
+                var pageable = PagingUtilities.GetPageable(page, pageSize);
+                var skipRow = PagingUtilities.GetSkipRow(pageable.Page, pageable.Size);
+                var costCenters = await _costCenterRepository.GetAllAsync();
+                List<CostCenterResponseModel> costCenterResponse = _mapper.Map<List<CostCenterResponseModel>>(costCenters);
+                int totalRows = costCenters.Count();
+                if (totalRows == 0)
+                    return new PagedResponse<CostCenterResponseModel>();
+
+                var totalPage = (int)Math.Ceiling(totalRows / (double)pageable.Size);
+                var pagedResponse = costCenterResponse.Skip(skipRow).Take(pageable.Size).ToList();
+
+                return new PagedResponse<CostCenterResponseModel>
+                {
+                    Items = pagedResponse,
+                    TotalItems = totalRows,
+                    TotalPage = totalPage,
+                    Page = pageable.Page,
+                    PageSize = pageable.Size,
+                };
+            }
+            catch
+            {
+                throw;
+            }
+        }
+        public async Task<PagedResponse<CostCenterResponseModel>> SearchPagedAsync(int page, int pageSize, string keyword, SearchCostCenterRequestModel request)
+        {
+            var groupList = request.parentGroupList == null ? null : request.parentGroupList.Select(x => x.group_id).ToList();
+            //var companyList = request.companyList == null ? null : request.companyList.Select(x => x.company_id).ToList();
+            var statusList = request.statusList == null ? null : request.statusList.Select(x => x.status).ToList();
+
+            var sortedCostCenters = await _costCenterRepository.CostCenterFilterPaged(request.create_date_from, request.create_date_to, groupList, statusList, keyword);
+
+            List<CostCenterResponseModel> costCenterResponse = _mapper.Map<List<CostCenterResponseModel>>(sortedCostCenters);
+            int totalRows = costCenterResponse.Count();
+            if (totalRows == 0)
+                return new PagedResponse<CostCenterResponseModel>();
+
+            var pageable = PagingUtilities.GetPageable(page, pageSize);
+            var skipRow = PagingUtilities.GetSkipRow(pageable.Page, pageable.Size);
+
+            var totalPage = (int)Math.Ceiling(totalRows / (double)pageable.Size);
+            var pagedResponse = costCenterResponse.Skip(skipRow).Take(pageable.Size).ToList();
+
+            return new PagedResponse<CostCenterResponseModel>
+            {
+                Items = costCenterResponse,
+                TotalItems = totalRows,
+                TotalPage = totalPage,
+                Page = pageable.Page,
+                PageSize = pageable.Size,
+            };
+        }
+        public async Task<IEnumerable<CostCenterTreeResponseModel>> GetCostCenterTreeViewAsync()
+        {
+            var levelFourGroups = await _groupRepository.GetLevelFourGroup(DomainConstant.Group.GroupTypeMaxLevel.CostCenter, DomainConstant.Group.GroupType.CostCenter);
+
+            List<CostCenterTreeResponseModel> response = new List<CostCenterTreeResponseModel>();
+
+            foreach(var levelFourGroup in levelFourGroups)
+            {
+                response.Add(new CostCenterTreeResponseModel
+                {
+                    group_id = levelFourGroup.id,
+                    group_code = levelFourGroup.group_code,
+                    group_description = levelFourGroup.group_description,
+                    status_flag = levelFourGroup.status_flag,
+                    level = levelFourGroup.level,
+                    child_group_list = await GetSubCostCenter(levelFourGroup.id, DomainConstant.Group.GroupTypeMaxLevel.CostCenter)
+                });
+            }
+            return response;
+        }
+        private async Task<List<CostCenterTreeResponseModel>> GetSubCostCenter(int parentId, int level)
+        {
+            var groups = await _groupRepository.GetChild(parentId, DomainConstant.Group.GroupType.CostCenter);
+
+            if (groups.Count() == 0)
+                return null;
+
+            var result = new List<CostCenterTreeResponseModel>();
+
+            foreach(var group in groups)
+            {
+                CostCenterTreeResponseModel costcenterResponse = new CostCenterTreeResponseModel
+                {
+                    group_id = group.id,
+                    group_code = group.group_code,
+                    group_description = group.group_description,
+                    status_flag = group.status_flag,
+                    level = group.level,
+                    child_group_list = await GetSubCostCenter(group.id, level - 1)
+                };
+
+                if(group.level == 1)
+                {
+                    var costCenters = await _costCenterRepository.GetCostCenterViaParentID(group.id);
+                    List<CostCenterList> costCenterLists = new List<CostCenterList>();
+                    foreach(var costCenter in costCenters)
+                    {
+                        costCenterLists.Add(new CostCenterList
+                        {
+                            id = costCenter.id,
+                            cost_center_code = costCenter.cost_center_code,
+                            cost_center_descriptions = costCenter.cost_center_description,
+                            status_flag = costCenter.status_flag,
+                        });
+                    }
+                    if(costCenterLists.Count > 0)
+                        costcenterResponse.cost_center_list = costCenterLists;
+                }
+                result.Add(costcenterResponse);
+
+            }
+
+            return result;
+        }
+        public async Task<CostCenterResponseModel> GetByIdAsync(int id)
+        {
+            try
+            {
+                var costCenter = await _costCenterRepository.GetByIdAsync(x => x.id == id);
+
+                if (costCenter == null)
+                    throw new BadRequestException(ErrorCodes.CostCenterIDNotFound, string.Format(ErrorMessages.CostCenterIDNotFound, id));
+
+                var response = _mapper.Map<CostCenterResponseModel>(costCenter);
+                return response;
+            }
+            catch (Exception ex)
+            {
+                throw;
+            }
+
+        }
+        public async Task CreateCostCenterAsync(CreateCostCenterRequestModel request, string userId)
+        {
+            try
+            {
+
+                var validator = new CreateCostCenterModelValidator(_companyStructureRepository, _costCenterRepository, _groupRepository);
+                var validatorResult = await validator.ValidateAsync(request);
+                if (validatorResult.Errors.Any())
+                    throw new BadRequestException(validatorResult);
+
+                //if (request.company_List != null)
+                //{
+                //    // check for duplicated company_id
+                //    var company_id_list = request.company_List.Where(x => x.company_id != null)
+                //                                              .Select(x => x.company_id)
+                //                                              .ToList();
+
+                //    var duplicated_CompanyId = company_id_list.GroupBy(x => x)
+                //                                               .Where(x => x.Count() > 1)
+                //                                               .Select(x => x.Key)
+                //                                               .ToList();
+                //    if (duplicated_CompanyId.Count() > 0)
+                //        throw new BadRequestException(ErrorCodes.DuplicatedCompanyId, string.Format(ErrorMessages.DuplicatedValues, "Company Id", string.Join(", ", duplicated_CompanyId)));
+
+
+                //    // Reject if company_id is not exist in Company table with status_flag = E
+                //    if (company_id_list != null)
+                //    {
+                //        var companyIdsInDB = await _companyRepository.GetCompanyIdList(company_id_list);
+                //        var notFound = company_id_list.Except(companyIdsInDB).ToList();
+                //        if (notFound.Any())
+                //            throw new BadRequestException(ErrorCodes.ParentGroupIDDontExist, string.Format(ErrorMessages.CompanyNotFound, "Id", string.Join(", ", notFound)));
+
+                //    }
+                //}
+
+                // Reject if code is exists in CostCenter table
+                //var costCenterCode = request.cost_center_code;
+                //var costCenter = await _costCenterRepository.GetByIdAsync(x => x.cost_center_code == costCenterCode);
+                //if (costCenter != null)
+                //    throw new BadRequestException(ErrorCodes.CostCenterCodeAlreadyExist, string.Format(ErrorMessages.CostCenterCodeAlreadyExist, costCenter.cost_center_code));
+
+
+                // Reject if parent_group_id is not exist in Group table with group_type = CC, status_flag = E
+                //int parentGroupId = request.parent_group_id;
+                //var group = await _groupRepository.GetByIdAsync(x => x.id == parentGroupId && x.group_type == DomainConstant.Group.GroupType.CostCenter && x.status_flag == DomainConstant.StatusFlag.Enabled);
+                //if (group == null)
+                //    throw new BadRequestException(ErrorCodes.ParentGroupIDDontExist, string.Format(ErrorMessages.ParentGroupIDDontExist, parentGroupId));
+
+
+                CostCenter cc = new CostCenter
+                {
+                    cost_center_code = request.cost_center_code,
+                    cost_center_description = request.cost_center_description,
+                    parent_group_id = request.parent_group_id,
+                    status_flag = request.status_flag,
+                    company_structure_id = request.company_structure_id,
+                    created_by = userId,
+                    created_on = DateTime.Now
+                };
+                await _costCenterRepository.CreateAsync(cc);
+                await _unitOfWork.SaveChangesAsync();
+
+                //if (request.company_List != null)
+                //{
+                //    List<CostCenterCompanyMapping> mappings = request.company_List.Select(x => new CostCenterCompanyMapping
+                //    {
+                //        cost_center_id = cc.id,
+                //        company_id = x.company_id,
+                //        created_by = userId,
+                //        created_on = DateTime.Now
+                //    }).ToList();
+                //    await _costCenterCompanyMappingRepository.CreateRangeAsync(mappings);
+                //    await _unitOfWork.SaveChangesAsync();
+                //}
+
+            }
+
+            catch
+            {
+                throw;
+            }
+        }
+        public async Task DeleteCostCenterAsync(DeleteCostCenterRequestDto request)
+        {
+            try
+            {
+                var validator = new DeleteCostCenterRequestModelValidator();
+                var validatorResult = validator.Validate(request);
+                if (validatorResult.Errors.Any())
+                    throw new BadRequestException(validatorResult);
+
+                var duplicated_CompanyId = request.costCenterList.Select(x => x)
+                                                            .GroupBy(x => x.id)
+                                                            .Where(x => x.Count() > 1)
+                                                            .Select(x => x.Key)
+                                                            .ToList();
+                if (duplicated_CompanyId.Count() > 0)
+                    throw new BadRequestException(ErrorCodes.DuplicatedCompanyId, string.Format(ErrorMessages.DuplicatedValues, "Company Id", string.Join(", ", duplicated_CompanyId)));
+
+                var companyId = request.costCenterList.Select(y => y.id).ToList();
+                var costCenters = await _costCenterRepository.FindMultiple(x => companyId.Contains(x.id));
+                var idNotFound = duplicated_CompanyId.Except(costCenters.Select(x => x.id).ToList());
+                if (idNotFound.Any())
+                    throw new BadRequestException(ErrorCodes.CostCenterIDNotFound, string.Format(ErrorMessages.CostCenterIDNotFound, string.Join(", ", idNotFound)));
+
+
+                await _costCenterRepository.DeleteRangeAsync(costCenters);
+                await _unitOfWork.SaveChangesAsync();
+
+            }
+            catch
+            {
+                throw;
+            }
+        }
+        public async Task ImportCostCenterAsync(string userId, ImportRevenueCenterRequestModel request)
+        {
+            string localFilePath = "";
+
+            try
+            {
+                if (!FileHelper.IsExcelFile(request.File.ContentType))
+                    throw new BadRequestException(ErrorCodes.NotExcelFile, ErrorMessages.NotExcelFile);
+
+                var currentTime = DateTime.Now;
+                localFilePath = $"App_Data/file-uploads/{currentTime.Year}/{currentTime.Month}/{currentTime.Day}/";
+                await FileHelper.SaveFileToTemporaryFolder(request.File, request.File.FileName, localFilePath);
+                var inputFilePath = Path.Combine(localFilePath, request.File.FileName);
+                List<CostCenterDto> excelData = await ReadExcelDataGroup(inputFilePath);
+                await validateExcelData(userId, excelData);
+
+            }
+            catch (Exception e)
+            {
+                throw;
+            }
+            finally
+            {
+                if (!string.IsNullOrEmpty(localFilePath))
+                    Directory.Delete(localFilePath, true);
+            }
+        }
+        public async Task UpdateCostCenterAsync(List<UpdateCostCenterRequestModel> requests, string userId)
+        {
+            try
+            {
+                var validator = new UpdateCostCenterModelValidator();
+
+                foreach (var model in requests)
+                {
+                    var validationResult = await validator.ValidateAsync(model);
+                    if (!validationResult.IsValid)
+                    {
+                        if (validationResult.Errors.Any())
+                            throw new BadRequestException(validationResult);
+
+                    }
+                }
+
+
+                _unitOfWork.BeginTransaction();
+
+                // Reject if code (modified) is exists in CostCenter table
+                var costCenterCodes = requests.Select(x => (x.cost_center_code, x.id)).ToList();
+                var costCodesFoundDB = await _costCenterRepository.GetCode(costCenterCodes);
+
+                if (costCodesFoundDB.Any())
+                    throw new BadRequestException(ErrorCodes.CostCenterCodeAlreadyExist, string.Format(ErrorMessages.CostCenterCodeAlreadyExist, string.Join(", ", costCodesFoundDB.ToList())));
+
+                // Reject if parent_group_id (modified) is not exist in Group table with group_type=RC, status_flag=E
+                var parentGroupIds = requests.Select(x => x.parent_group_id).ToList();
+                var groupsInDB = (await _groupRepository.FindMultiple(x => parentGroupIds.Contains(x.id) && x.group_type == DomainConstant.Group.GroupType.CostCenter && x.status_flag == DomainConstant.StatusFlag.Enabled))
+                                .Select(x => x.id)
+                                .ToList();
+
+                var parentIdNotFound = parentGroupIds.Except(groupsInDB);
+                if (parentIdNotFound.Any())
+                    throw new BadRequestException(ErrorCodes.ParentGroupIDDontExist, string.Format(ErrorMessages.ParentGroupIDDontExist, string.Join(", ", parentIdNotFound)));
+
+
+                var company_structure_ids = requests.Where(x => x.company_structure_id != null)
+                                                    .Select(x => x.company_structure_id.Value)
+                                                    .ToList();
+
+                if(company_structure_ids.Count > 0)
+                {
+                    var companyStructureList = await _companyStructureRepository.GetCompanyStructureCodes(company_structure_ids);
+                    var notFoundId = company_structure_ids.Except(companyStructureList);
+                    if (notFoundId.Any())
+                        throw new BadRequestException(ErrorCodes.CompanyStructureIdNotFound, string.Format(ErrorMessages.CompanyStructureIdNotFound, string.Join(", ", notFoundId)));
+
+                }
+
+                //var company_List = requests.SelectMany(x => x.company_List);
+
+                //List<int> createMapping = new List<int>();
+                //List<int> deleteMapping = new List<int>();
+                //if (company_List != null)
+                //{
+                //    // Reject if action_flag=C and company_id is not exist in Company table with status_flag=E
+                //    var company_id_flag_C = company_List.Where(x => x.action_flag == DomainConstant.ActionFlag.Create)
+                //                                        .Select(x => x.company_id)
+                //                                        .ToList();
+
+                //    var companiesIdInDb = (await _companyRepository.FindMultiple(x => company_id_flag_C.Contains(x.id) && x.status_flag == DomainConstant.StatusFlag.Enabled)).Select(x => x.id);
+
+                //    var IdNotFound = company_id_flag_C.Except(companiesIdInDb);
+                //    if (IdNotFound.Any())
+                //        throw new BadRequestException(ErrorCodes.CompanyNotFound, string.Format(ErrorMessages.CompanyNotFound, "Company ID :", string.Join(", ", IdNotFound)));
+
+
+                //    // Reject if action_flag=D and company_id is exist in COA table (Chart of accounts)
+                //    //var company_id_flag_D = company_List.Where(x => x.action_flag == DomainConstant.ActionFlag.Delete)
+                //    //                                    .Select(x => x.company_id)
+                //    //                                    .ToList();
+
+                //    //var COAIdInDb = (await _companyRepository.FindMultiple(x => company_id_flag_C.Contains(x.id) && x.status_flag == DomainConstant.StatusFlag.Enabled)).Select(x => x.id);
+
+                //    var company_list_flatten = requests.SelectMany(x => x.company_List?.Select(y => (x.id, y.company_id, y.action_flag)));
+                //    var company_list_flatten_ids = company_list_flatten.Select(x => (x.id, x.company_id)).ToList();
+
+                //    List<CostCenterCompanyMapping> createList = company_list_flatten.Where(x => x.action_flag == DomainConstant.ActionFlag.Create)
+                //                                                                    .Select(x => new CostCenterCompanyMapping
+                //                                                                    {
+                //                                                                        cost_center_id = x.id,
+                //                                                                        company_id = x.company_id,
+                //                                                                        created_by = userId,
+                //                                                                        created_on = DateTime.Now
+                //                                                                    }).ToList();
+
+                //    List<CostCenterCompanyMapping> deleteList = company_list_flatten.Where(x => x.action_flag == DomainConstant.ActionFlag.Delete)
+                //                                                                    .Select(x => new CostCenterCompanyMapping
+                //                                                                    {
+                //                                                                        cost_center_id = x.id,
+                //                                                                        company_id = x.company_id,
+                //                                                                    }).ToList();
+
+                //    var ccMapping = await _costCenterCompanyMappingRepository.GetMappingHits(company_list_flatten_ids);
+                //    var ccMappingHashset = new HashSet<(int, int)>(ccMapping);
+
+                //    var duplicatedCreateList = createList.Where(x => ccMappingHashset.Contains((x.company_id, x.cost_center_id)));
+                //    if (duplicatedCreateList.Any())
+                //        throw new BadRequestException(ErrorCodes.MappingAlreadyExist, string.Format(ErrorMessages.MappingAlreadyExist, string.Join(", ", duplicatedCreateList.Select(x => x.company_id).ToList()), string.Join(", ", duplicatedCreateList.Select(x => x.cost_center_id).ToList())));
+
+                //    var missingDeleteList = deleteList.Where(x => !ccMappingHashset.Contains((x.company_id, x.cost_center_id)));
+                //    if (missingDeleteList.Any())
+                //        throw new BadRequestException(ErrorCodes.CompanyNotFound, string.Format(ErrorMessages.MappingNotFound, string.Join(", ", missingDeleteList.Select(x => x.company_id).ToList()), string.Join(", ", missingDeleteList.Select(x => x.cost_center_id).ToList())));
+
+                //    if (createList.Any())
+                //    {
+                //        await _costCenterCompanyMappingRepository.CreateRangeAsync(createList);
+                //        await _unitOfWork.SaveChangesAsync();
+                //    }
+
+                //    var deleteListDB = deleteList.Where(x => ccMappingHashset.Contains((x.company_id, x.cost_center_id)));
+                //    if (deleteListDB.Any())
+                //    {
+                //        var toDelete = await _costCenterCompanyMappingRepository.GetDeleteList(deleteList.Select(x => (x.cost_center_id, x.company_id)).ToList());
+                //        await _costCenterCompanyMappingRepository.DeleteRangeAsync(toDelete);
+                //        await _unitOfWork.SaveChangesAsync();
+                //    }
+
+                //}
+
+
+                // Update Data base
+                var requestIds = requests.Select(x => x.id);
+                var revenueCenters = await _costCenterRepository.FindMultiple(x => requestIds.Contains(x.id));
+                var missingId = requestIds.Except(revenueCenters.Select(x => x.id));
+                if (missingId.Any())
+                    throw new BadRequestException(ErrorCodes.CompanyNotFound, string.Format(ErrorMessages.RevenueCenterIdNotFound, string.Join(", ", missingId)));
+
+                List<CostCenter> updateList = new List<CostCenter>();
+                foreach (var request in requests)
+                {
+                    var revenueCenter = revenueCenters.Where(x => x.id == request.id).FirstOrDefault();
+
+                    revenueCenter.cost_center_code = request.cost_center_code;
+                    revenueCenter.cost_center_description = request.cost_center_description;
+                    revenueCenter.parent_group_id = request.parent_group_id;
+                    revenueCenter.status_flag = request.status_flag;
+                    revenueCenter.company_structure_id = request.company_structure_id;
+                    revenueCenter.last_modified_by = userId;
+                    revenueCenter.last_modified_on = DateTime.Now;
+
+                    updateList.Add(revenueCenter);
+                }
+
+                await _costCenterRepository.UpdateRangeAsync(updateList);
+                await _unitOfWork.SaveChangesAsync();
+                _unitOfWork.Commit();
+            }
+            catch
+            {
+                _unitOfWork.Rollback();
+                throw;
+            }
+        }
+        public async Task<byte[]> GetCostCenterTemplate(string webRootPath)
+        {
+            try
+            {
+                string filePath = Path.Combine(webRootPath, ApplicationConstant.wwwRootFileName.CostCenter);
+                if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath))
+                    throw new BadRequestException(ErrorCodes.FileNotFound, ErrorMessages.FileNotFound);
+
+                byte[] fileBytes = await File.ReadAllBytesAsync(filePath);
+                return fileBytes;
+            }
+            catch
+            {
+                throw;
+            }
+        }
+        public async Task<List<CCCompanyStructureResponseModel>> GetCompanyStructureCostCenter()
+        {
+            try
+            {
+                var result = await _costCenterRepository.FindCompanyStructureCC();
+
+                if (result == null)
+                    throw new BadRequestException(ErrorCodes.CompanyStructureRevenueCenterNotFound, ErrorMessages.CompanyStructureRevenueCenterNotFound);
+
+
+                var response = _mapper.Map<List<CCCompanyStructureResponseModel>>(result);
+
+                return response;
+            }
+            catch
+            {
+                throw;
+            }
+        }
+        public async Task UpdateCostCenterCompanyStructureAsync(List<UpdateCostCenterCompanyStructureModel> requests)
+        {
+            try
+            {
+                _unitOfWork.BeginTransaction();
+                var validator = new UpdateCostCenterCompanyStructureValidator();
+
+                foreach (var model in requests)
+                {
+                    var validationResult = await validator.ValidateAsync(model);
+                    if (!validationResult.IsValid)
+                    {
+                        if (validationResult.Errors.Any())
+                            throw new BadRequestException(validationResult);
+
+                    }
+                }
+
+
+                // Check for duplicated code
+                var duplicated_Code = requests.GroupBy(x => x.cost_center_id)
+                                               .Where(x => x.Count() > 1)
+                                               .Select(x => x.Key)
+                                               .ToList();
+
+                if (duplicated_Code.Count() > 0)
+                    throw new BadRequestException(ErrorCodes.RevenueCenterIdDuplicated, string.Format(ErrorMessages.DuplicatedValues, "Cost Center Id", string.Join(", ", duplicated_Code)));
+
+
+                // Check for duplicated company_structure_id
+                var company_structure_id = requests.Where(x => x.company_structure_id != null)
+                             .Select(x => x.company_structure_id)
+                             .ToList();
+
+                var duplicated_company_structure_ido = company_structure_id.GroupBy(x => x)
+                                                                           .Where(x => x.Count() > 1)
+                                                                           .Select(x => x.Key)
+                                                                           .ToList();
+
+                if (duplicated_company_structure_ido.Count() > 0)
+                    throw new BadRequestException(ErrorCodes.DuplicatedCompanyId, string.Format(ErrorMessages.DuplicatedValues, "Company Structure id", string.Join(", ", duplicated_company_structure_ido)));
+
+
+                var update_list_id = requests.Where(x => x.action_flag == ApplicationConstant.ActionFlag.Create)
+                                             .Select(x => x.company_structure_id.Value).ToList();
+
+                var update_list = requests.Where(x => x.action_flag == ApplicationConstant.ActionFlag.Create).ToList();
+                var delete_list = requests.Where(x => x.action_flag == ApplicationConstant.ActionFlag.Delete).Select(x => x.company_structure_id).ToList();
+                var request_id = requests.Select(y => y.cost_center_id).ToList();
+
+
+                // Get all Ids that are not found
+                var revenue_center_dic = await _costCenterRepository.GetDictionaryViaId(request_id);
+                var notFoundIds = request_id.Except(revenue_center_dic.Keys.ToList());
+                if (notFoundIds.Count() > 0)
+                {
+                    throw new BadRequestException(ErrorCodes.RevenueCenterIdNotFound, string.Format(ErrorMessages.RevenueCenterIdNotFound, string.Join(", ", notFoundIds)));
+                }
+
+                // Get all company_structure_id not found
+                var company_structure_ids = await _companyStructureRepository.FindMultiple(x => update_list_id.Contains(x.id) && x.status_flag == DomainConstant.StatusFlag.Enabled);
+                var notFoundIdsCS = update_list_id.Except(company_structure_ids.Select(x => x.id).ToList());
+                if (notFoundIdsCS.Count() > 0)
+                {
+                    throw new BadRequestException(ErrorCodes.CompanyStructureIdNotFoundRC, string.Format(ErrorMessages.CompanyStructureIdNotFoundRC, string.Join(", ", notFoundIdsCS)));
+                }
+
+                // Check if Organization number is occupy by another dataset
+                //var duplicatedCompanyStructureId = await _costCenterRepository.FindMultiple(x => update_list_id.Contains(x.company_structure_id.Value));
+
+                //HashSet<int> duplicated_company_structure = new HashSet<int>();
+                //if (duplicatedCompanyStructureId.Count() > 0)
+                //{
+                //    foreach (var rc in duplicatedCompanyStructureId)
+                //    {
+                //        // go into request list to check if the company_struct_id is changed
+                //        var request = requests.Where(x => x.cost_center_id == rc.id && x.action_flag == ApplicationConstant.ActionFlag.Delete)
+                //                              .FirstOrDefault();
+                //        // if there are not changes in the request list or if the 
+                //        if (request == null || request.company_structure_id != null)
+                //            duplicated_company_structure.Add(rc.company_structure_id.Value);
+
+                //    }
+                //}
+                //if (duplicated_company_structure.Count() > 0)
+                //    throw new BadRequestException(ErrorCodes.CompanyStructureOrganizationNoInUse, string.Format(ErrorMessages.CompanyStructureOrganizationNoInUse, string.Join(",", duplicated_company_structure)));
+
+                var duplicatedCompanyStructureId = await _costCenterRepository.FindMultiple(x => update_list_id.Contains(x.company_structure_id.Value));
+                if (duplicatedCompanyStructureId.Count() > 0)
+                {
+                    foreach (var cc in duplicatedCompanyStructureId)
+                    {
+                        cc.company_structure_id = null;
+                    }
+                    await _costCenterRepository.UpdateRangeAsync(duplicatedCompanyStructureId);
+                    await _unitOfWork.SaveChangesAsync();
+                }
+
+
+                var delete_list_db = new List<CostCenter>();
+                foreach (var request in requests.Where(x => x.action_flag == ApplicationConstant.ActionFlag.Delete).Select(x => x.cost_center_id))
+                {
+                    revenue_center_dic[request].company_structure_id = null;
+                    delete_list_db.Add(revenue_center_dic[request]);
+                }
+                if (delete_list_db.Count() > 0)
+                {
+                    await _costCenterRepository.UpdateRangeAsync(delete_list_db);
+                    await _unitOfWork.SaveChangesAsync();
+
+                    //Reject if company_structure_id is found more than one record in CostCenter table(validate after update> rollback if failed)
+                    var costCenterCompanyStructId = (await _costCenterRepository.FindMultiple(x => x.company_structure_id != null)).Select(x => x.company_structure_id).ToList();
+                    var duplicatedCompanyStructDBId = costCenterCompanyStructId.GroupBy(x => x)
+                                                                             .Where(x => x.Count() > 1)
+                                                                             .Select(x => x.Key)
+                                                                             .ToList();
+
+                    if (duplicatedCompanyStructDBId.Count > 0)
+                    {
+                        throw new BadRequestException(ErrorCodes.RevenueCenterCompanyStructDuplicated, string.Format(ErrorMessages.RevenueCenterCompanyStructDuplicated, string.Join(", ", duplicatedCompanyStructDBId.ToList())));
+                    }
+                }
+
+                var update_list_db = new List<CostCenter>();
+                foreach (var request in update_list)
+                {
+                    revenue_center_dic[request.cost_center_id].company_structure_id = request.company_structure_id;
+                    update_list_db.Add(revenue_center_dic[request.cost_center_id]);
+                }
+                await _costCenterRepository.UpdateRangeAsync(update_list_db);
+                await _unitOfWork.SaveChangesAsync();
+                _unitOfWork.Commit();
+
+            }
+            catch
+            {
+                _unitOfWork.Rollback();
+                await _unitOfWork.SaveChangesAsync();
+                throw;
+            }
+
+        }
+        public async Task<IEnumerable<CostCenterLimitedModel>> GetAllLimitedAsync(bool onlyEnabled)
+        {
+            try
+            {
+                string enabled = onlyEnabled == true ? DomainConstant.StatusFlag.Enabled : DomainConstant.StatusFlag.Disabled;
+                var costCenters = await _costCenterRepository.FindMultiple(x => x.status_flag == enabled);
+
+                if (costCenters == null)
+                    throw new BadRequestException(ErrorCodes.CostCenterNotFound, ErrorMessages.CostCenterNotFound);
+
+                List<CostCenterLimitedModel> costCenterResponse = _mapper.Map<List<CostCenterLimitedModel>>(costCenters);
+
+                return costCenterResponse;
+            }
+            catch
+            {
+                throw;
+            }
+        }
+
+        private async Task<List<CostCenterDto>> ReadExcelDataGroup(string inputFilePath)
+        {
+            List<CostCenterDto> excelData = new List<CostCenterDto>();
+
+            await using (var stream = File.Open(inputFilePath, FileMode.Open, FileAccess.Read))
+            {
+                using (var reader = ExcelReaderFactory.CreateReader(stream))
+                {
+                    var rowIndex = 1;
+                    reader.Read();
+                    while (reader.Read())
+                    {
+                        if (rowIndex != 0)
+                        {
+                            CostCenterDto rowData = new CostCenterDto();
+                            rowData.code = reader.IsDBNull(0) ? null : reader.GetValue(0).ToString();
+                            rowData.description = reader.IsDBNull(1) ? null : reader.GetValue(1).ToString();
+                            rowData.parentGroup = reader.IsDBNull(2) ? null : reader.GetValue(2).ToString();
+                            rowData.organizationNumber = reader.IsDBNull(3) ? null : reader.GetValue(3).ToString();
+                            rowData.status = reader.IsDBNull(4) ? null : reader.GetValue(4).ToString();
+                            excelData.Add(rowData);
+                        }
+                    }
+                }
+            }
+            return excelData;
+
+        }
+        private async Task validateExcelData(string userId, List<CostCenterDto> excelData)
+        {
+            /*
+            try
+            {
+                int row = 1;
+                StringBuilder sb = new StringBuilder();
+                HashSet<int> missingDataRow = new HashSet<int>();
+                HashSet<int> invalidStatusFlag = new HashSet<int>();
+                HashSet<int> parentGroupError = new HashSet<int>();
+                HashSet<int> companyError = new HashSet<int>();
+
+                List<CostCenter> createList = new List<CostCenter>();
+                List<CostCenter> updateList = new List<CostCenter>();
+
+                var parentGroupList = excelData.Where(x => x.parentGroup != null)
+                               .Select(x => x.parentGroup)
+                               .ToList();
+
+
+                var rcCode = excelData.Where(x => x.code != null)
+                               .Select(x => x.code)
+                               .Distinct()
+                               .ToList();
+
+                var orgnizationNo = excelData.Where(x => x.organizationNumber != null)
+                                                     .Select(x => x.organizationNumber)
+                                                     .ToList();
+
+                var getIDByParentGroupNo = await _groupRepository.GetIDByParentGroupNo(parentGroupList, DomainConstant.Group.GroupType.CostCenter);
+                var rcDictionary = await _costCenterRepository.GetDictionary(rcCode);
+                var companyStructureDictionary = await _companyStructureRepository.GetCompanyOrgNoDic(orgnizationNo);
+
+
+                foreach (var data in excelData)
+                {
+                    if (data.code is null || data.code == null ||
+                        data.description is null || data.description == null ||
+                        data.parentGroup is null || data.parentGroup == null ||
+                        //data.company is null || data.company == null ||
+                        data.status is null || data.status == null)
+                    {
+                        missingDataRow.Add(row);
+                    }
+
+                    if (!(data.status == DomainConstant.StatusFlag.Enabled || data.status == DomainConstant.StatusFlag.Disabled))
+                    {
+                        invalidStatusFlag.Add(row);
+                    }
+
+                    // Reject if parent_group_no is not exist in Group table with group_type=RC, status_flag=E
+                    if (!getIDByParentGroupNo.Keys.Contains(data.parentGroup))
+                        parentGroupError.Add(row);
+
+                    if (data.organizationNumber != null || !companyStructureDictionary.Keys.Contains(data.organizationNumber))
+                        companyError.Add(row);
+
+                    row++;
+                }
+
+                if (missingDataRow.Count > 0)
+                    sb.Append(string.Format(ErrorMessages.MissingDataRow, string.Join(", ", missingDataRow)));
+
+                if (parentGroupError.Count > 0)
+                    sb.Append(string.Format(ErrorMessages.ParentGroupError, string.Join(", ", parentGroupError)));
+
+                if (companyError.Count > 0)
+                    sb.Append(string.Format(ErrorMessages.CompanyNotFound, "company_no", string.Join(", ", companyError)));
+
+                if (invalidStatusFlag.Count > 0)
+                    sb.Append(string.Format(ErrorMessages.StatusFlagNotSupportInLine, string.Join(", ", invalidStatusFlag)));
+
+
+                if (sb.Length != 0)
+                    throw new BadRequestException(ErrorCodes.ImportError, sb.ToString());
+
+                else
+                {
+                    foreach (var data in excelData)
+                    {
+                        if (!rcDictionary.Keys.Contains(data.code))
+                        {
+                            createList.Add(new CostCenter
+                            {
+                                cost_center_code = data.code,
+                                cost_center_description = data.description,
+                                parent_group_id = getIDByParentGroupNo.GetValueOrDefault(data.parentGroup, 0),
+                                company_structure_id =  data.organizationNumber == null ? null : companyStructureDictionary[data.organizationNumber] ,
+                                status_flag = data.status,
+                                created_by = userId,
+                                created_on = DateTime.Now
+                            });
+
+                            //createMappingList.Add(new CostCenterCompanyMapping
+                            //{
+                            //    company_id = companyDictionary[data.company].id
+                            //});
+
+                        }
+                        else
+                        {
+                            rcDictionary[data.code].cost_center_code = data.code;
+                            rcDictionary[data.code].cost_center_description = data.description;
+                            rcDictionary[data.code].parent_group_id = getIDByParentGroupNo.GetValueOrDefault(data.parentGroup, 0);
+                            rcDictionary[data.code].company_structure_id = data.organizationNumber == null ? null : companyStructureDictionary[data.organizationNumber];
+                            rcDictionary[data.code].status_flag = data.status;
+                            rcDictionary[data.code].last_modified_by = userId;
+                            rcDictionary[data.code].last_modified_on = DateTime.Now;
+                            updateList.Add(rcDictionary[data.code]);
+
+                        }
+                    }
+
+                    if (updateList.Count > 0)
+                        await _costCenterRepository.UpdateRangeAsync(updateList);
+                    await _unitOfWork.SaveChangesAsync();
+                    _unitOfWork.Commit();
+
+                    //Reject if company_structure_id is found more than one record in CostCenter table(validate after update> rollback if failed)
+                    var costCenterCompanyStructId = ( await _costCenterRepository.GetAllAsync() ).Select(x => x.company_structure_id).ToList();
+                    var duplicatedCompanyStructDBId = costCenterCompanyStructId.GroupBy(x => x)
+                                                                             .Where(x => x.Count() > 1)
+                                                                             .Select(x => x.Key)
+                                                                             .ToList();
+
+                    if(duplicatedCompanyStructDBId.Count > 0)
+                    {
+                        throw new BadRequestException( ErrorCodes.CostCenterCompanyStructDuplicated, string.Format(ErrorMessages.CostCenterCompanyStructDuplicated, string.Join( ", ", duplicatedCompanyStructDBId.ToList() )));
+                    }
+
+                    await _costCenterRepository.CreateRangeAsync(createList);
+                    await _unitOfWork.SaveChangesAsync();
+
+
+                    //int i = 0;
+                    //foreach (var revenueCenter in createList)
+                    //{
+                    //    createMappingList[i].cost_center_id = revenueCenter.id;
+                    //    createMappingList[i].created_by = userId;
+                    //    createMappingList[i].created_on = DateTime.Now;
+                    //    i++;
+                    //}
+                    //if (createMappingList.Count > 0)
+                    //{
+                    //    await _costCenterCompanyMappingRepository.CreateRangeAsync(createMappingList);
+                    //    await _unitOfWork.SaveChangesAsync();
+                    //}
+                }
+
+            }
+            catch
+            {
+                throw;
+            }
+            */
+            try
+            {
+                _unitOfWork.BeginTransaction();
+
+                int row = 1;
+                StringBuilder sb = new StringBuilder();
+                HashSet<int> missingDataRow = new HashSet<int>();
+                HashSet<int> invalidStatusFlag = new HashSet<int>();
+                HashSet<int> parentGroupError = new HashSet<int>();
+                HashSet<int> companyError = new HashSet<int>();
+
+                List<CostCenter> createList = new List<CostCenter>();
+                List<CostCenter> updateList = new List<CostCenter>();
+
+                var parentGroupList = excelData.Where(x => x.parentGroup != null)
+                                               .Select(x => x.parentGroup)
+                                               .ToList();
+
+
+                var rcCode = excelData.Where(x => x.code != null)
+                                      .Select(x => x.code)
+                                      .Distinct()
+                                      .ToList();
+
+                // Check for duplicated code
+                var duplicated_Code = excelData.GroupBy(x => x.code)
+                                               .Where(x => x.Count() > 1)
+                                               .Select(x => x.Key)
+                                               .ToList();
+
+                if (duplicated_Code.Count() > 0)
+                    throw new BadRequestException(ErrorCodes.DuplicatedCompanyId, string.Format(ErrorMessages.DuplicatedValues, "Company Code", string.Join(", ", duplicated_Code)));
+
+
+                // Check for duplicated organizationNo
+                var organizationNo = excelData.Where(x => x.organizationNumber != null)
+                             .Select(x => x.organizationNumber)
+                             .ToList();
+
+                var duplicated_org_No = organizationNo.GroupBy(x => x)
+                                                     .Where(x => x.Count() > 1)
+                                                     .Select(x => x.Key)
+                                                     .ToList();
+
+                if (duplicated_org_No.Count() > 0)
+                    throw new BadRequestException(ErrorCodes.DuplicatedCompanyId, string.Format(ErrorMessages.DuplicatedValues, "Organization Number", string.Join(", ", duplicated_org_No)));
+
+
+                // Check If Organization number exist in DB
+                var getIDByParentGroupNo = await _groupRepository.GetIDByParentGroupNo(parentGroupList, DomainConstant.Group.GroupType.RevenueCenter);
+                var rcDictionary = await _costCenterRepository.GetDictionary(rcCode);
+
+                var companyStructureDictionary = await _companyStructureRepository.GetCompanyOrgNoDic(organizationNo);
+
+                foreach (var data in excelData)
+                {
+                    if (data.organizationNumber != null && !companyStructureDictionary.Keys.Contains(data.organizationNumber))
+                        companyError.Add(row + 1);
+                    row++;
+
+                }
+                if (companyError.Count > 0)
+                    sb.Append(string.Format(ErrorMessages.CompanyNotFound, "Organisation Number", string.Join(", ", companyError)));
+
+                if (sb.Length != 0)
+                    throw new BadRequestException(ErrorCodes.ImportError, sb.ToString());
+
+
+                // Check if Organization number is occupy by another dataset
+                var duplicatedCompanyStructureId = await _costCenterRepository.FindMultiple(x => companyStructureDictionary.Values.ToList().Contains(x.company_structure_id.Value));
+
+                HashSet<string> duplicated_company_structure = new HashSet<string>();
+                if (duplicatedCompanyStructureId.Count() > 0)
+                {
+                    var companyStructDic = await _companyStructureRepository.GetCompanyOrgIdDic(companyStructureDictionary.Values.ToList());
+                    foreach (var rc in duplicatedCompanyStructureId)
+                    {
+                        var request = excelData.Where(x => x.code == rc.cost_center_code).FirstOrDefault();
+                        if (request == null || request.organizationNumber != null && companyStructureDictionary[request.organizationNumber] == rc.company_structure_id)
+                            duplicated_company_structure.Add(companyStructDic[rc.company_structure_id.Value]);
+
+                    }
+                }
+                if (duplicated_company_structure.Count() > 0)
+                    throw new BadRequestException(ErrorCodes.CompanyStructureOrganizationNoInUse, string.Format(ErrorMessages.CompanyStructureOrganizationNoInUse, string.Join(",", duplicated_company_structure)));
+
+
+                // basic validation
+                row = 1;
+                foreach (var data in excelData)
+                {
+                    if (data.code is null || data.code == null ||
+                        data.description is null || data.description == null ||
+                        data.parentGroup is null || data.parentGroup == null ||
+                        data.status is null || data.status == null)
+                    {
+                        missingDataRow.Add(row + 1);
+                    }
+
+                    if (!(data.status == DomainConstant.StatusFlag.Enabled || data.status == DomainConstant.StatusFlag.Disabled))
+                    {
+                        invalidStatusFlag.Add(row + 1);
+                    }
+
+                    // Reject if parent_group_no is not exist in Group table with group_type=RC, status_flag=E
+                    if (!getIDByParentGroupNo.Keys.Contains(data.parentGroup))
+                        parentGroupError.Add(row + 1);
+
+
+                    row++;
+                }
+
+                if (missingDataRow.Count > 0)
+                    sb.Append(string.Format(ErrorMessages.MissingDataRow, string.Join(", ", missingDataRow)));
+
+                if (parentGroupError.Count > 0)
+                    sb.Append(string.Format(ErrorMessages.ParentGroupError, string.Join(", ", parentGroupError)));
+
+                if (invalidStatusFlag.Count > 0)
+                    sb.Append(string.Format(ErrorMessages.StatusFlagNotSupportInLine, string.Join(", ", invalidStatusFlag)));
+
+                if (sb.Length != 0)
+                    throw new BadRequestException(ErrorCodes.ImportError, sb.ToString());
+
+                else
+                {
+                    foreach (var data in excelData)
+                    {
+                        if (!rcDictionary.Keys.Contains(data.code))
+                        {
+                            createList.Add(new CostCenter
+                            {
+                                cost_center_code = data.code,
+                                cost_center_description = data.description,
+                                parent_group_id = getIDByParentGroupNo.GetValueOrDefault(data.parentGroup, 0),
+                                company_structure_id = data.organizationNumber == null ? null : companyStructureDictionary[data.organizationNumber],
+                                status_flag = data.status,
+                                created_by = userId,
+                                created_on = DateTime.Now
+                            });
+
+                        }
+                        else
+                        {
+                            rcDictionary[data.code].cost_center_code = data.code;
+                            rcDictionary[data.code].cost_center_description = data.description;
+                            rcDictionary[data.code].parent_group_id = getIDByParentGroupNo.GetValueOrDefault(data.parentGroup, 0);
+                            rcDictionary[data.code].company_structure_id = data.organizationNumber == null ? null : companyStructureDictionary[data.organizationNumber];
+                            rcDictionary[data.code].status_flag = data.status;
+                            rcDictionary[data.code].last_modified_by = userId;
+                            rcDictionary[data.code].last_modified_on = DateTime.Now;
+                            updateList.Add(rcDictionary[data.code]);
+
+                        }
+                    }
+
+                    if (updateList.Count > 0)
+                    {
+                        await _costCenterRepository.UpdateRangeAsync(updateList);
+                        await _unitOfWork.SaveChangesAsync();
+                        _unitOfWork.Commit();
+                        //Reject if company_structure_id is found more than one record in CostCenter table(validate after update> rollback if failed)
+                        var costCenterCompanyStructId = (await _costCenterRepository.FindMultiple(x => x.company_structure_id != null)).Select(x => x.company_structure_id).ToList();
+                        var duplicatedCompanyStructDBId = costCenterCompanyStructId.GroupBy(x => x)
+                                                                                 .Where(x => x.Count() > 1)
+                                                                                 .Select(x => x.Key)
+                                                                                 .ToList();
+
+                        if (duplicatedCompanyStructDBId.Count > 0)
+                        {
+                            throw new BadRequestException(ErrorCodes.CostCenterCompanyStructDuplicated, string.Format(ErrorMessages.CostCenterCompanyStructDuplicated, string.Join(", ", duplicatedCompanyStructDBId.ToList())));
+                        }
+
+                    }
+
+                    if (createList.Count > 0)
+                    {
+                        await _costCenterRepository.CreateRangeAsync(createList);
+                        await _unitOfWork.SaveChangesAsync();
+                        _unitOfWork.Commit();
+                    }
+                }
+            }
+            catch
+            {
+                _unitOfWork.Rollback();
+                throw;
+            }
+
+        }
+
+    }
+}

@@ -1,0 +1,23 @@
+﻿namespace SERP.Domain.Transactions.Receiving.Model
+{
+    public class ReceivingItemDetailUomConversionModel
+    {
+        public int receiving_detail_id { get; set; }
+        public string uom { get; set; }
+        public string po_uom { get; set; }
+        public int remaining_qty { get; set; }
+        public int qty { get; set; }
+        public int? primary_uom_qty { get; set; }
+        public int? secondary_uom_qty { get; set; }
+        public string notes_to_warehouse { get; set; }
+        public int? country_of_origin_id { get; set; }
+        public bool lot_control_flag { get; set; }
+        public List<packingListInfo> packing_list_info { get; set; } = [];
+    }
+    public class packingListInfo
+    {
+        public int no_of_carton { get; set; }
+        public int unit_per_carton { get; set; }
+        public string? mixed_carton_no { get; set; }
+    }
+}

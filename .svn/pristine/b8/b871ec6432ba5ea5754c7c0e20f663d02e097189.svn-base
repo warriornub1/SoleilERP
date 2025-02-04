@@ -1,0 +1,139 @@
+﻿using Microsoft.EntityFrameworkCore;
+using SERP.Application.Transactions.PackingLists.Interfaces;
+using SERP.Domain.Masters.Countries.Models;
+using SERP.Domain.Transactions.PackingLists;
+using SERP.Domain.Transactions.PackingLists.Model;
+using SERP.Infrastructure.Common;
+using SERP.Infrastructure.Common.DBContexts;
+using System.Linq.Expressions;
+using SERP.Domain.Transactions.PurchaseOrders.Model;
+
+namespace SERP.Infrastructure.Transactions.PackingLists
+{
+    internal class PackingHeaderRepository : GenericRepository<PackingHeader>, IPackingHeaderRepository
+    {
+        public PackingHeaderRepository(ApplicationDbContext dbContext) : base(dbContext)
+        {
+        }
+
+        public bool isPackingListExist(int containerId)
+        {
+            var isExist = (from packingHeader in _dbContext.PackingHeaders
+                           join packingDetail in _dbContext.PackingDetails on packingHeader.id equals packingDetail.packing_header_id
+                           where packingHeader.container_id == containerId
+                           select packingHeader).Count();
+            return isExist > 0;
+        }
+        public async Task<List<PackingListForReceiving>> GetPackingListForReceivingDetail(int containerId, int asnHeaderId)
+        {
+            var detailList = await (from packingHeader in _dbContext.PackingHeaders
+                                    join packingDetail in _dbContext.PackingDetails on packingHeader.id equals packingDetail.packing_header_id
+                                    join asnDetail in _dbContext.AsnDetails on packingDetail.asn_detail_id equals asnDetail.id
+                                    join poDetail in _dbContext.PoDetails on asnDetail.po_detail_id equals poDetail.id
+                                    where packingHeader.container_id == containerId && packingHeader.asn_header_id == asnHeaderId
+                                    select new PackingListForReceiving
+                                    {
+                                        packing_header_id = packingDetail.packing_header_id,
+                                        package_no = packingDetail.package_no,
+                                        item_id = packingDetail.item_id,
+                                        country_of_origin_id = packingDetail.country_of_origin_id,
+                                        po_detail_id = poDetail.id,
+                                        asn_detail_id = packingDetail.asn_detail_id,
+                                        uom = asnDetail.uom,
+                                        po_uom = poDetail.uom,
+                                        qty = packingDetail.qty
+                                    }).ToListAsync();
+            return detailList;
+        }
+
+        public async Task<List<PackingHeader>> GetPackingListHeaderByConditionAsync(Expression<Func<PackingHeader, bool>> predicate)
+        {
+            return await _dbContext.PackingHeaders.Where(predicate).ToListAsync();
+        }
+
+        public async Task<List<int>> GetPackingHeaderId(Expression<Func<PackingHeader, bool>> predicate)
+        {
+            return await _dbContext.PackingHeaders.Where(predicate).Select(x => x.id).ToListAsync();
+        }
+
+        public IQueryable<PagedPackingInformationDetail> BuildPackingListQuery(FilterPackingListRequestModel request)
+        {
+            var packingListDetailQuery = _dbContext.PackingDetails.AsNoTracking()
+                .Where(x => request.PackingHeaderIds.Contains(x.packing_header_id));
+
+            if (request.PackageNo is not null && request.PackageNo.Count > 0)
+            {
+                packingListDetailQuery = packingListDetailQuery.Where(x => x.package_no != null && request.PackageNo.Contains(x.package_no));
+            }
+
+            var poQuery = from poDetail in _dbContext.PoDetails.AsNoTracking()
+                          join poHeader in _dbContext.PoHeaders.AsNoTracking() on poDetail.po_header_id equals poHeader.id
+                          select new
+                          {
+                              po_detail_id = poDetail.id,
+                              po_no = poHeader.po_no,
+                              po_line_no = poDetail.line_no,
+                              po_open_qty = poDetail.open_qty,
+                          };
+
+            var query = from packingDetail in packingListDetailQuery
+                        join item in _dbContext.Item.AsNoTracking() on packingDetail.item_id equals item.id
+                        join itemMapping in _dbContext.SupplierItemMapping.AsNoTracking() on item.id equals itemMapping.item_id into lstItemMapping
+                        from itemMapping in lstItemMapping.DefaultIfEmpty()
+                        join countryOfOrigin in _dbContext.Country.AsNoTracking() on packingDetail.country_of_origin_id equals countryOfOrigin.id into lstCountryOfOrigin
+                        from countryOfOrigin in lstCountryOfOrigin.DefaultIfEmpty()
+                        join asnDetail in _dbContext.AsnDetails.AsNoTracking() on packingDetail.asn_detail_id equals asnDetail.id into lstAsnDetail
+                        from asnDetail in lstAsnDetail.DefaultIfEmpty()
+                        join po in poQuery on asnDetail.po_detail_id equals po.po_detail_id into lstPo
+                        from po in lstPo.DefaultIfEmpty()
+                        select new PagedPackingInformationDetail
+                        {
+                            id = packingDetail.id,
+                            package_no = packingDetail.package_no,
+                            mixed_carton_no = packingDetail.mixed_carton_no,
+                            asn_detail_id = packingDetail.asn_detail_id,
+                            asn_notes_to_warehouse = asnDetail.notes_to_warehouse,
+                            line_no = asnDetail.line_no,
+                            packing_header_id = packingDetail.packing_header_id,
+                            item_no = item.item_no,
+                            description_1 = item.description_1,
+                            supplier_part_no = itemMapping.supplier_part_no,
+                            qty = packingDetail.qty,
+                            uom = item.primary_uom,
+                            country_of_origin = countryOfOrigin != null
+                                ? new CountryBasicDetail
+                                {
+                                    id = countryOfOrigin.id,
+                                    country_name = countryOfOrigin.country_name,
+                                    country_alpha_code_two = countryOfOrigin.country_alpha_code_two,
+                                    country_alpha_code_three = countryOfOrigin.country_alpha_code_three
+                                }
+                                : null,
+                            no_of_carton = packingDetail.no_of_carton,
+                            unit_per_carton = packingDetail.unit_per_carton,
+                            created_on = packingDetail.created_on,
+                            created_by = packingDetail.created_by,
+                            last_modified_on = packingDetail.last_modified_on,
+                            last_modified_by = packingDetail.last_modified_by,
+                            po_detail = new PoDetailPackingInformationModel
+                            {
+                                po_detail_id = po.po_detail_id,
+                                po_no = po.po_no,
+                                po_line_no = po.po_line_no,
+                                po_open_qty = po.po_open_qty,
+                                lot_label_required_flag = item.label_required_flag
+                            }
+                        };
+
+            // - Keywords are Item No, Description 1, Supplier Part No
+            if (!string.IsNullOrEmpty(request.Keyword))
+            {
+                query = query.Where(x => x.item_no.Contains(request.Keyword) ||
+                                                                   x.description_1.Contains(request.Keyword) ||
+                                                                   x.supplier_part_no.Contains(request.Keyword));
+            }
+
+            return query;
+        }
+    }
+}

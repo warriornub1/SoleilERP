@@ -1,0 +1,332 @@
+﻿using AutoMapper;
+using FluentValidation;
+using SERP.Application.Common;
+using SERP.Application.Common.Constants;
+using SERP.Application.Common.Exceptions;
+using SERP.Application.Masters.Lovs.DTOs;
+using SERP.Application.Masters.Lovs.DTOs.Request;
+using SERP.Application.Masters.Lovs.DTOs.Response;
+using SERP.Application.Masters.Lovs.Interfaces;
+using SERP.Domain.Common.Constants;
+using SERP.Domain.Common.Model;
+using SERP.Domain.Masters.LOVs;
+using SERP.Domain.Masters.LOVs.Model;
+using static SERP.Application.Masters.Lovs.DTOs.Request.CreateLovRequestDto;
+using static SERP.Application.Masters.Lovs.DTOs.Request.PagedFilterLovRequestDto;
+using static SERP.Application.Masters.Lovs.DTOs.Request.UpdateLovRequestDto;
+
+namespace SERP.Application.Masters.Lovs.Services
+{
+    public class LovService : ILovService
+    {
+        private readonly ILovRepository _lovRepository;
+        private readonly IMapper _mapper;
+        private readonly IUnitOfWork _unitOfWork;
+
+        public LovService(ILovRepository lovRepository, IMapper mapper, IUnitOfWork unitOfWork)
+        {
+            _lovRepository = lovRepository;
+            _mapper = mapper;
+            _unitOfWork = unitOfWork;
+        }
+
+        public async Task<IEnumerable<GetByLovTypeResponseDto>> GetByLovType(List<GetByLovTypeRequestDto> getByLovTypeRequestDtos, bool onlyEnabled)
+        {
+            if (getByLovTypeRequestDtos.Count <= 0)
+                throw new BadRequestException(ErrorCodes.LovListEmpty, ErrorMessages.LovListEmpty);
+
+            var lovTypesStr = new List<string>();
+            foreach (var getByLovTypeRequestDto in getByLovTypeRequestDtos)
+            {
+                lovTypesStr.Add(getByLovTypeRequestDto.lov_type.ToString());
+            }
+
+            var lovs = await _lovRepository.GetByLovTypeAsync(lovTypesStr, onlyEnabled);
+            var getByLovTypeResponseDtos = new List<GetByLovTypeResponseDto>();
+
+            string lovType = "";
+            foreach (var lov in lovs)
+            {
+                var getByLovTypeResponseDto = new GetByLovTypeResponseDto();
+                if (!lovType.Equals(lov.lov_type))
+                {
+                    getByLovTypeResponseDto.lov_type = lov.lov_type;
+                    getByLovTypeResponseDtos.Add(getByLovTypeResponseDto);
+                    lovType = lov.lov_type;
+                }
+            }
+
+            foreach (var getByLovTypeResponseDto in getByLovTypeResponseDtos)
+            {
+                var getByLovTypeResponseDetailDtos = new List<GetByLovTypeResponseDetailDto>();
+                foreach (var lov in lovs)
+                {
+                    if (getByLovTypeResponseDto.lov_type.Equals(lov.lov_type))
+                    {
+                        var getByLovTypeResponseDetailDto = new GetByLovTypeResponseDetailDto();
+                        getByLovTypeResponseDetailDto.lov_value = lov.lov_value;
+                        getByLovTypeResponseDetailDto.lov_label = lov.lov_label;
+                        getByLovTypeResponseDetailDto.extended_data_1 = lov.extended_data_1;
+                        getByLovTypeResponseDetailDto.extended_data_2 = lov.extended_data_2;
+                        getByLovTypeResponseDetailDto.description = lov.description;
+                        getByLovTypeResponseDetailDto.status_flag = lov.status_flag;
+                        getByLovTypeResponseDetailDto.default_flag = lov.default_flag;
+                        getByLovTypeResponseDetailDtos.Add(getByLovTypeResponseDetailDto);
+                    }
+                }
+                getByLovTypeResponseDto.lovs = getByLovTypeResponseDetailDtos;
+            }
+
+            return getByLovTypeResponseDtos;
+        }
+
+        public async Task<PagedResponse<PagedLovValuesResponse>> PagedFilterLovAsync(PagedFilterLovRequestDto request)
+        {
+            var validator = new PagedFilterLovRequestDtoValidator();
+            var validatorResult = await validator.ValidateAsync(request);
+            if (validatorResult.Errors.Any())
+                throw new BadRequestException(validatorResult);
+
+            var query = _lovRepository.LovFilterAsync(new FilterLovRequestModel
+            {
+                Keyword = request.Keyword,
+                lovTypeList = request.lovTypeList,
+                statusList = request.statusList,
+                create_date_from = request.create_date_from,
+                create_date_to = request.create_date_to,
+                default_flag = request.default_flag
+            });
+
+            var totalRows = query.Count();
+            if (totalRows == 0)
+            {
+                return new PagedResponse<PagedLovValuesResponse>();
+            }
+
+            var listSort = new List<Sortable>
+            {
+                new()
+                {
+                    FieldName = request.SortBy ?? DomainConstant.DefaultSortField.Lov,
+                    IsAscending = request.SortAscending
+                }
+            };
+
+            var orderBy = ApplySort.GetOrderByFunction<Lov>(listSort);
+            var pageable = PagingUtilities.GetPageable(request.Page, request.PageSize);
+            var skipRow = PagingUtilities.GetSkipRow(pageable.Page, pageable.Size);
+            var totalPage = (int)Math.Ceiling(totalRows / (double)pageable.Size);
+            var pagedResponse = orderBy(query).Skip(skipRow).Take(pageable.Size).ToList();
+
+            return new PagedResponse<PagedLovValuesResponse>
+            {
+                Items = _mapper.Map<List<PagedLovValuesResponse>>(pagedResponse),
+                TotalItems = totalRows,
+                TotalPage = totalPage,
+                Page = pageable.Page,
+                PageSize = pageable.Size
+            };
+        }
+
+        public async Task CreateLovAsync(string userId, List<CreateLovRequestDto> requests)
+        {
+            try
+            {
+
+                // Validation check
+                var validator = new CreateLovRequestDtoValidator();
+                foreach (var request in requests)
+                {
+                    var validatoResult = await validator.ValidateAsync(request);
+                    if (validatoResult.Errors.Any())
+                        throw new BadRequestException(validatoResult);
+                }
+
+                // check request list for same default_flag
+                //var groupedByLovType = requests.GroupBy(lov => lov.lov_type)
+                //                               .Where(group => group.Count(lov => lov.default_flag == true) > 1)
+                //                               .Select(group => group.Key)
+                //                               .ToList();
+
+                var groupedByLovType = requests.Where(x => x.default_flag)
+                                               .GroupBy(x => new { x.lov_type, x.default_flag })
+                                               .Where(x => x.Count() > 1)
+                                               .Select(x => x.Key.lov_type)
+                                               .ToList();
+
+
+                if (groupedByLovType.Any())
+                    throw new BadRequestException(ErrorCodes.LovReqMoreThanOneDefaultFlag, string.Format(ErrorMessages.LovReqMoreThanOneDefaultFlag, string.Join(", ", groupedByLovType)));
+
+
+                // check database for the same default_flag
+                var requestExtracted = requests.Select(x => (x.lov_type, x.default_flag))
+                                               .Where(x => x.default_flag == true)
+                                               .ToList();
+
+                if (requestExtracted.Any())
+                {
+
+                    var duplicatedRecords = await _lovRepository.FindLovRecords(requestExtracted);
+
+                    if (duplicatedRecords.Any())
+                        throw new BadRequestException(ErrorCodes.LovDBMoreThanOneDefaultFlag, string.Format(ErrorMessages.LovDBMoreThanOneDefaultFlag, string.Join(", ", duplicatedRecords)));
+                }
+
+
+                // save record
+                List<Lov> lovsToInsert = new List<Lov>();
+                foreach (var request in requests)
+                {
+                    lovsToInsert.Add(
+                        new Lov
+                        {
+                            lov_type = request.lov_type,
+                            lov_value = request.lov_value,
+                            lov_label = request.lov_label,
+                            extended_data_1 = request.extended_data_1,
+                            extended_data_2 = request.extended_data_2,
+                            description = request.description,
+                            status_flag = request.status_flag,
+                            default_flag = request.default_flag,
+                            created_on = DateTime.Now,
+                            created_by = userId,
+                        }
+                    );
+
+                }
+                await _lovRepository.CreateRangeAsync(lovsToInsert);
+                await _unitOfWork.SaveChangesAsync();
+
+
+            }
+            catch
+            {
+                throw;
+            }
+
+        }
+
+        public async Task UpdateLovAsync(string userId, List<UpdateLovRequestDto> requests)
+        {
+            try
+            {
+                var validator = new UpdateLovRequestDtoValidator();
+                foreach (var request in requests)
+                {
+                    var validatorResult = await validator.ValidateAsync(request);
+                    if (validatorResult.Errors.Any())
+                        throw new BadRequestException(validatorResult);
+
+
+                }
+
+                var group_by = requests.GroupBy(x => x.id)
+                                       .Where(x => x.Count() > 1)
+                                       .Select(x => x.Key)
+                                       .ToList();
+
+                if (group_by.Count() > 0)
+                    throw new BadRequestException(ErrorMessages.DuplicatedLovId);
+
+                // check for duplicated lov_type and default_flag = true
+                var groupedByLovType = requests.Where(x => x.default_flag)
+                                               .GroupBy(x => new { x.lov_type, x.default_flag })
+                                               .Where(x => x.Count() > 1)
+                                               .Select(x => x.Key.lov_type)
+                                               .ToList();
+
+
+                if (groupedByLovType.Any())
+                    throw new BadRequestException(ErrorCodes.LovReqMoreThanOneDefaultFlag, string.Format(ErrorMessages.LovReqMoreThanOneDefaultFlag, string.Join(", ", groupedByLovType)));
+
+                var lovToUpdate = await _lovRepository.Find(x => requests.Select(y => y.id).Contains(x.id));
+
+                // Ids not found
+                var notFoundList = requests.Select(x => x.id).Except(lovToUpdate.Select(y => y.id));
+                if (notFoundList.Count() != 0)
+                    throw new BadRequestException(ErrorCodes.LovNotFound, string.Format(ErrorMessages.LovNotFound, String.Join(",", notFoundList)));
+
+                // check for duplicated records in database
+                var requestExtracted = requests.Select(x => (x.lov_type, x.default_flag, x.id))
+                                                .Where(x => x.default_flag == true)
+                                                .ToList();
+
+                if (requestExtracted.Any())
+                {
+                    var duplicatedRecords = await _lovRepository.FindLovRecordsWithID(requestExtracted);
+
+                    if (duplicatedRecords.Any())
+                        throw new BadRequestException(ErrorCodes.LovDBMoreThanOneDefaultFlag, string.Format(ErrorMessages.LovDBMoreThanOneDefaultFlag, string.Join(", ", duplicatedRecords)));
+                }
+
+                foreach (var lov in lovToUpdate)
+                {
+                    var request = requests.Where(x => x.id == lov.id).First();
+                    lov.lov_type = request.lov_type;
+                    lov.lov_value = request.lov_value;
+                    lov.lov_label = request.lov_label;
+                    lov.extended_data_1 = request.extended_data_1;
+                    lov.extended_data_2 = request.extended_data_2;
+                    lov.description = request.description;
+                    lov.default_flag = request.default_flag;
+                    lov.status_flag = request.status_flag;
+                    lov.last_modified_by = userId;
+                    lov.last_modified_on = DateTime.Now;
+
+                }
+
+                await _lovRepository.UpdateRangeAsync(lovToUpdate);
+                await _unitOfWork.SaveChangesAsync();
+
+
+            }
+            catch
+            {
+                throw;
+            }
+        }
+
+        public async Task DeleteLovAsync(List<DeleteLovList> requests)
+        {
+            try
+            {
+                var group_by = requests.GroupBy(x => x.id)
+                       .Where(x => x.Count() > 1)
+                       .Select(x => x.Key)
+                       .ToList();
+
+                if (group_by.Count() > 0)
+                    throw new BadRequestException(ErrorMessages.DuplicatedLovId);
+
+                var lovToDelete = await _lovRepository.Find(x => requests.Select(y => y.id).Contains(x.id));
+
+                var iDsNotFound = requests.Select(x => x.id).Except(lovToDelete.Select(y => y.id)).ToList();
+                if (iDsNotFound.Count() != 0)
+                    throw new BadRequestException(ErrorCodes.LovNotFound, string.Format(ErrorMessages.LovNotFound, string.Join(",", iDsNotFound)));
+
+                await _lovRepository.DeleteRangeAsync(lovToDelete);
+                await _unitOfWork.SaveChangesAsync();
+            }
+            catch
+            {
+                throw;
+            }
+        }
+
+        public async Task<IEnumerable<LovDto>> GetAllLoveAsync()
+        {
+            var Lovs = await _lovRepository.GetAllAsync();
+            return _mapper.Map<List<LovDto>>(Lovs);
+        }
+
+        public async Task<LovTypeResponseDto> GetAllLovTypeAsync()
+        {
+            var lov = await _lovRepository.GetAllAsync();
+            return new LovTypeResponseDto()
+            {
+                lov_type = lov.Select(x => x.lov_type).Distinct().ToList()
+            };
+        }
+    }
+}

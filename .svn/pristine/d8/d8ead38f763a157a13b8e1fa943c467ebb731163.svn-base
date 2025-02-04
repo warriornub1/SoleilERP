@@ -1,0 +1,126 @@
+﻿using Microsoft.Extensions.DependencyInjection;
+using SERP.Application.Common;
+using SERP.Application.Finance.Company_Structures.Interface;
+using SERP.Application.Finance.CostCenters.Interface;
+using SERP.Application.Finance.Groups.Interfaces;
+using SERP.Application.Finance.Natural_Accounts.Interface;
+using SERP.Application.Finance.RevenueCenters.Interface;
+using SERP.Application.Masters.Agents.Interfaces;
+using SERP.Application.Masters.ApplicationTokens.Interfaces;
+using SERP.Application.Masters.BranchPlants.Interfaces;
+using SERP.Application.Masters.Companies.Interfaces;
+using SERP.Application.Masters.Countries.Interfaces;
+using SERP.Application.Masters.Currencies.Interfaces;
+using SERP.Application.Masters.Customers.Interfaces;
+using SERP.Application.Masters.Items.Interfaces;
+using SERP.Application.Masters.Lovs.Interfaces;
+using SERP.Application.Masters.Ports.Interfaces;
+using SERP.Application.Masters.Sites.Interfaces;
+using SERP.Application.Masters.Suppliers.Interfaces;
+using SERP.Application.Masters.SystemKVSs.Interfaces;
+using SERP.Application.Transactions.AdvancedShipmentNotices.Interfaces;
+using SERP.Application.Transactions.Containers.Interfaces;
+using SERP.Application.Transactions.CustomViews.Interfaces;
+using SERP.Application.Transactions.FilesTracking.Interfaces;
+using SERP.Application.Transactions.InboundShipments.Interfaces;
+using SERP.Application.Transactions.Invoices.Interfaces;
+using SERP.Application.Transactions.PackingLists.Interfaces;
+using SERP.Application.Transactions.PurchaseOrders.Interfaces;
+using SERP.Application.Transactions.Receiving.Interfaces;
+using SERP.Application.Transactions.SequencesTracking.Interfaces;
+using SERP.Infrastructure.Common;
+using SERP.Infrastructure.Finance.CompanyStructures;
+using SERP.Infrastructure.Finance.CostCenters;
+using SERP.Infrastructure.Finance.Groups;
+using SERP.Infrastructure.Finance.Natural_Accounts;
+using SERP.Infrastructure.Finance.RevenueCenters;
+using SERP.Infrastructure.Masters.Agents;
+using SERP.Infrastructure.Masters.ApplicationTokens;
+using SERP.Infrastructure.Masters.BranchPlants;
+using SERP.Infrastructure.Masters.Companies;
+using SERP.Infrastructure.Masters.Countries;
+using SERP.Infrastructure.Masters.Currencies;
+using SERP.Infrastructure.Masters.Customers;
+using SERP.Infrastructure.Masters.Items;
+using SERP.Infrastructure.Masters.Lovs;
+using SERP.Infrastructure.Masters.Ports;
+using SERP.Infrastructure.Masters.Sites;
+using SERP.Infrastructure.Masters.Suppliers;
+using SERP.Infrastructure.Masters.SystemKVSs;
+using SERP.Infrastructure.Transactions.AdvancedShipmentNotices;
+using SERP.Infrastructure.Transactions.Containers;
+using SERP.Infrastructure.Transactions.CustomViewAttributes;
+using SERP.Infrastructure.Transactions.CustomViews;
+using SERP.Infrastructure.Transactions.FilesTracking;
+using SERP.Infrastructure.Transactions.InboundShipments;
+using SERP.Infrastructure.Transactions.Invoices;
+using SERP.Infrastructure.Transactions.PackingLists;
+using SERP.Infrastructure.Transactions.PurchaseOrders;
+using SERP.Infrastructure.Transactions.Receiving;
+using SERP.Infrastructure.Transactions.SequencesTracking;
+using POFileRepository = SERP.Infrastructure.Transactions.PurchaseOrders.POFileRepository;
+
+namespace SERP.Infrastructure
+{
+    public static class InfrastructureRegistration
+    {
+        public static IServiceCollection AddInfrastructureServices(this IServiceCollection services)
+        {
+            services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
+            services.AddScoped<IUnitOfWork, UnitOfWork>();
+            services.AddScoped<ISupplierRepository, SupplierRepository>();
+            services.AddScoped<IItemRepository, ItemRepository>();
+            services.AddScoped<ILovRepository, LovRepository>();
+            services.AddScoped<IBranchPlantRepository, BranchPlantRepository>();
+            services.AddScoped<ICustomerRepository, CustomerRepository>();
+            services.AddScoped<IAgentRepository, AgentRepository>();
+            services.AddScoped<ICurrencyRepository, CurrencyRepository>();
+            services.AddScoped<ICustomViewRepository, CustomViewRepository>();
+            services.AddScoped<ICustomViewAttributeRepository, CustomViewAttributeRepository>();
+            services.AddScoped<IPOHeaderRepository, POHeaderRepository>();
+            services.AddScoped<IPODetailRepository, PODetailRepository>();
+            services.AddScoped<IPOFileRepository, POFileRepository>();
+            services.AddScoped<IFileTrackingRepository, FileTrackingRepository>();
+            services.AddScoped<ISiteRepository, SiteRepository>();
+            services.AddScoped<IPortRepository, PortRepository>();
+            services.AddScoped<ICompanyRepository, CompanyRepository>();
+            services.AddScoped<ISupplierItemMappingRepository, SupplierItemMappingRepository>();
+            services.AddScoped<ISequenceTrackingRepository, SequenceTrackingRepository>();
+            services.AddScoped<ISupplierSecondaryRepository, SupplierSecondaryRepository>();
+            services.AddScoped<ICountryRepository, CountryRepository>();
+            services.AddScoped<IASNHeaderRepository, ASNHeaderRepository>();
+            services.AddScoped<IASNDetailRepository, ASNDetailRepository>();
+            services.AddScoped<IASNFileRepository, ASNFileRepository>();
+            services.AddScoped<IInboundShipmentRepository, InboundShipmentRepository>();
+            services.AddScoped<IContainerRepository, ContainerRepository>();
+            services.AddScoped<IContainerFileRepository, ContainerFileRepository>();
+            services.AddScoped<IContainerAsnRepository, ContainerASNRepository>();
+            services.AddScoped<IInboundShipmentRequestRepository, InboundShipmentRequestRepository>();
+            services.AddScoped<IInboundShipmentFileRepository, InboundShipmentFileRepository>();
+            services.AddScoped<ICustomViewFilterRepository, CustomViewFilterRepository>();
+            services.AddScoped<IInboundShipmentBLAWBRepository, InboundShipmentBLAWBRepository>();
+            services.AddScoped<IApplicationTokenRepository, ApplicationTokenRepository>();
+            services.AddScoped<IGroupRepository, GroupRepository>();
+            services.AddScoped<IIntermediarySupplierRepository, IntermediarySupplierRepository>();
+            services.AddScoped<IPackingHeaderRepository, PackingHeaderRepository>();
+            services.AddScoped<IPackingDetailRepository, PackingDetailRepository>();
+            services.AddScoped<IReceivingHeaderRepository, ReceivingHeaderRepository>();
+            services.AddScoped<IReceivingDetailRepository, ReceivingDetailRepository>();
+            services.AddScoped<IReceivingFileRepository, ReceivingFileRepository>();
+            services.AddScoped<ISystemKvsRepository, SystemKvsRepository>();
+            services.AddScoped<IItemUomConversionRepository, ItemUomConversionRepository>();
+            services.AddScoped<IInvoiceHeaderRepository, InvoiceHeaderRepository>();
+            services.AddScoped<IInvoiceDetailRepository, InvoiceDetailRepository>();
+            services.AddScoped<ICostCenterRepository, CostCenterRepository>();
+            services.AddScoped<IRevenueCenterRepository, RevenueCenterRepository>();
+            services.AddScoped<IInvoiceFileRepository, InvoiceFileRepository>();
+            services.AddScoped<IASNPackingDiscrepancyRepository, ASNPackingDiscrepancyRepository>();
+            services.AddScoped<INaturalAccountRepository, NaturalAccountRepository>();
+            services.AddScoped<ISupplierSelfCollectSiteRepository, SupplierSelfCollectSiteRepository>();
+            services.AddScoped<ICompanyStructureRepository, CompanyStructureRepository>();
+            services.AddScoped<IInboundShipmentASNRepository, InboundShipmentASNRepository>();
+            //added for Fixer IO auto update
+            services.AddScoped<ICurrencyExchangeRepository, CurrencyExchangeRepository>();            return services;
+        }
+    }
+}

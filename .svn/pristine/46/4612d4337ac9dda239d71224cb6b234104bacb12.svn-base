@@ -1,0 +1,160 @@
+﻿using Microsoft.EntityFrameworkCore;
+using SERP.Application.Transactions.InboundShipments.Interfaces;
+using SERP.Domain.Transactions.InboundShipments;
+using SERP.Domain.Transactions.InboundShipments.Model;
+using SERP.Infrastructure.Common;
+using SERP.Infrastructure.Common.DBContexts;
+
+namespace SERP.Infrastructure.Transactions.InboundShipments
+{
+    public class InboundShipmentRequestRepository : GenericRepository<InboundShipmentRequest>, IInboundShipmentRequestRepository
+    {
+        public InboundShipmentRequestRepository(ApplicationDbContext dbContext) : base(dbContext)
+        {
+        }
+
+        public async Task<List<string>> GetInboundShipmentRequestGroupList(string statusFlag)
+        {
+            return await _dbContext.Set<InboundShipmentRequest>().Where(x => x.status_flag == statusFlag && !string.IsNullOrEmpty(x.inbound_shipment_request_group_no))
+                .Select(x => x.inbound_shipment_request_group_no!).Distinct().ToListAsync();
+        }
+
+        public IQueryable<PagedIsrResponseDetail> BuildISRFilterQuery(PageFilterIsrRequestModel request)
+        {
+
+            var isrQuery = _dbContext.InboundShipmentRequests.AsNoTracking();
+
+            if (request.BranchPlants is not null && request.BranchPlants.Count > 0)
+            {
+                //isrQuery = isrQuery.Where(x => request.BranchPlants.Contains(x.branch_plant_id));
+            }
+
+            if (request.cargo_ready_date_from.HasValue && request.cargo_ready_date_to.HasValue)
+            {
+                isrQuery = isrQuery.Where(x => x.cargo_ready_date >= request.cargo_ready_date_from
+                                               && x.cargo_ready_date <= request.cargo_ready_date_to);
+            }
+
+            if (request.incoterms is not null && request.incoterms.Count > 0)
+            {
+                isrQuery = isrQuery.Where(x => request.incoterms.Contains(x.incoterm));
+            }
+
+            if (request.country_of_loading_list is not null && request.country_of_loading_list.Count > 0)
+            {
+                isrQuery = isrQuery
+                    .Where(x => x.country_of_loading_id.HasValue)
+                    .Where(x => request.country_of_loading_list.Contains(x.country_of_loading_id!.Value));
+            }
+
+            if (request.country_of_discharge_list is not null && request.country_of_discharge_list.Count > 0)
+            {
+                isrQuery = isrQuery
+                    .Where(x => x.country_of_discharge_id.HasValue)
+                    .Where(x => request.country_of_discharge_list.Contains(x.country_of_discharge_id!.Value));
+            }
+
+            // port_of_loading_id
+            if (request.port_of_loading_list is not null && request.port_of_loading_list.Count > 0)
+            {
+                isrQuery = isrQuery
+                                    .Where(x => x.port_of_loading_id.HasValue)
+                                    .Where(x => request.port_of_loading_list.Contains(x.port_of_loading_id!.Value));
+            }
+
+            // port_of_discharge_id
+            if (request.port_of_discharge_list is not null && request.port_of_discharge_list.Count > 0)
+            {
+                isrQuery = isrQuery
+                                    .Where(x => x.port_of_discharge_id.HasValue)
+                                    .Where(x => request.port_of_discharge_list.Contains(x.port_of_discharge_id!.Value));
+            }
+
+            // status
+            if (request.status_list is not null && request.status_list.Count > 0)
+            {
+                isrQuery = isrQuery.Where(x => request.status_list.Contains(x.status_flag));
+            }
+
+            // ISG NO
+            if (request.inbound_shipment_request_group_no_list is not null && request.inbound_shipment_request_group_no_list.Count > 0)
+            {
+                isrQuery = isrQuery.Where(x => x.inbound_shipment_request_group_no != null &&
+                                               request.inbound_shipment_request_group_no_list.Contains(x.inbound_shipment_request_group_no));
+            }
+
+            var query = from isr in isrQuery
+                        //join asnHeader in _dbContext.AsnHeaders.AsNoTracking() on isr.id equals asnHeader.inbound_shipment_request_id
+                        //join shipToBranchPlant in _dbContext.BranchPlant.AsNoTracking() on asnHeader.ship_to_branch_plant_id equals shipToBranchPlant.id
+                        //join supplier in _dbContext.Supplier.AsNoTracking() on asnHeader.supplier_id equals supplier.id
+                        join countryOfLoading in _dbContext.Country.AsNoTracking() on isr.country_of_loading_id equals countryOfLoading.id into countryOfLoadingGroup
+                        from countryOfLoading in countryOfLoadingGroup.DefaultIfEmpty()
+                        join countryOfDischarge in _dbContext.Country.AsNoTracking() on isr.country_of_discharge_id equals countryOfDischarge.id into countryOfDischargeGroup
+                        from countryOfDischarge in countryOfDischargeGroup.DefaultIfEmpty()
+                        join portOfLoading in _dbContext.Ports.AsNoTracking() on isr.port_of_loading_id equals portOfLoading.id into portOfLoadingGroup
+                        from portOfLoading in portOfLoadingGroup.DefaultIfEmpty()
+                        join portOfDischarge in _dbContext.Ports.AsNoTracking() on isr.port_of_discharge_id equals portOfDischarge.id into portOfDischargeGroup
+                        from portOfDischarge in portOfDischargeGroup.DefaultIfEmpty()
+                        select new PagedIsrResponseDetail
+                        {
+                            inbound_shipment_request = new InboundShipmentRequestPageDetail
+                            {
+                                inbound_shipment_request_id = isr.id,
+                                inbound_shipment_request_no = isr.inbound_shipment_request_no,
+                                status_flag = isr.status_flag,
+                                freight_method = isr.freight_method,
+                                incoterm = isr.incoterm,
+                                cargo_ready_date = isr.cargo_ready_date,
+                                cargo_description = isr.cargo_description,
+                                port_of_loading_etd = isr.port_of_loading_etd,
+                                port_of_discharge_eta = isr.port_of_discharge_eta,
+                                country_of_loading_id = isr.country_of_loading_id,
+                                country_of_loading_name = countryOfLoading.country_name,
+                                port_of_loading_id = isr.port_of_loading_id,
+                                port_of_loading_no = portOfLoading.port_no,
+                                port_of_loading_name = portOfLoading.port_name,
+                                country_of_discharge_id = isr.country_of_discharge_id,
+                                country_of_discharge_name = countryOfDischarge.country_name,
+                                port_of_discharge_id = isr.port_of_discharge_id,
+                                port_of_discharge_no = portOfDischarge.port_no,
+                                port_of_discharge_name = portOfDischarge.port_name,
+                                created_on = isr.created_on,
+                                created_by = isr.created_by,
+                                last_modified_on = isr.last_modified_on,
+                                last_modified_by = isr.last_modified_by
+                            },
+                            //asn = new InboundShipmentRequestPageAsnDetail
+                            //{
+                            //    id = asnHeader.id,
+                            //    asn_no = asnHeader.asn_no,
+                            //    supplier_no = supplier.supplier_no,
+                            //    supplier_name = supplier.supplier_name,
+                            //    ship_to_branch_plant_id = asnHeader.ship_to_branch_plant_id,
+                            //    ship_to_branch_plant_no = shipToBranchPlant.branch_plant_no,
+                            //    ship_to_branch_plant_name = shipToBranchPlant.branch_plant_name,
+                            //    // for update asn
+                            //    status_flag = asnHeader.status_flag,
+                            //    branch_plant_id = asnHeader.branch_plant_id,
+                            //    supplier_id = asnHeader.supplier_id,
+                            //    inbound_shipment_id = asnHeader.inbound_shipment_id,
+                            //    inbound_shipment_request_id = asnHeader.inbound_shipment_request_id,
+                            //    forecast_ex_wh_date = asnHeader.forecast_ex_wh_date,
+                            //    internal_remarks = asnHeader.internal_remarks,
+                            //    notes_to_cargo_team = asnHeader.notes_to_cargo_team,
+                            //    shipment_arranged_supplier_flag = asnHeader.shipment_arranged_supplier_flag
+                            //}
+                        };
+
+            // - Keywords are Inbound Shipment Request No, ASN No, Supplier No and Supplier Name 
+            if (!string.IsNullOrEmpty(request.Keyword))
+            {
+                //query = query.Where(x => x.asn.asn_no.Contains(request.Keyword)
+                //                         || x.inbound_shipment_request.inbound_shipment_request_no.Contains(request.Keyword)
+                //                         || x.asn.supplier_no.Contains(request.Keyword)
+                //                         || x.asn.supplier_name.Contains(request.Keyword));
+            }
+
+            return query;
+        }
+    }
+}

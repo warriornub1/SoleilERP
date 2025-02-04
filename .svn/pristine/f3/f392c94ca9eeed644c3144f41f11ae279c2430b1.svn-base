@@ -1,0 +1,24 @@
+﻿using SERP.Domain.Common;
+using SERP.Domain.Common.Attributes;
+using SERP.Domain.Common.Constants;
+using System.ComponentModel.DataAnnotations;
+
+namespace SERP.Domain.Finance.RevenueCenters
+{
+    public class RevenueCenter : BaseModel
+    {
+        [StringLength(DomainDBLength.RevenueCenter.RevenueCenterCode)]
+        public string revenue_center_code { get; set; }
+
+        [StringLength(DomainDBLength.RevenueCenter.RevenueCenterDescription)]
+        public string revenue_center_description { get; set; }
+        public int parent_group_id { get; set; }
+
+        [StringLength(DomainDBLength.RevenueCenter.StatusFlag)]
+        [AcceptValue(
+        DomainConstant.StatusFlag.Enabled,
+        DomainConstant.StatusFlag.Disabled
+        )]
+        public string status_flag { get; set; } = DomainConstant.StatusFlag.Enabled;
+    }
+}

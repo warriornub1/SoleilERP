@@ -1,0 +1,81 @@
+﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+using SERP.Domain.Common;
+
+namespace SERP.Domain.Transactions.AdvancedShipmentNotices
+{
+    public class ASNHeader : BaseModel
+    {
+        /// <summary>
+        /// ASNYYMM99999
+        /// </summary>
+        [StringLength(15)]
+        public string asn_no { get; set; }
+        /// <summary>
+        /// 01: Draft
+        /// 02: New
+        /// 11: In Process
+        /// 30: Closed
+        /// 90: Cancelled
+        /// </summary>
+        [StringLength(2)]
+        public string status_flag { get; set; }
+        /// <summary>
+        /// Issuing Branch Plan IDForeign key from table BranchPlant.id
+        /// </summary>
+        public int branch_plant_id { get; set; }
+        /// <summary>
+        /// Ship To Branch Plant IDForeign key from table BranchPlant.id
+        /// </summary>
+        public int ship_to_branch_plant_id { get; set; }
+        /// <summary>
+        /// Supplier IDForeign key from table Supplier.id
+        /// </summary>
+        public int supplier_id { get; set; }
+        /*
+        /// <summary>
+        /// Shipment Arranged By Supplier Flag	
+        /// </summary>
+        public bool shipment_arranged_supplier_flag { get; set; }
+        /// <summary>
+        ///  Inbound Shipment ID
+        /// </summary>
+        public int? inbound_shipment_id { get; set; }
+        /// <summary>
+        /// Inbound Shipment Request ID
+        /// </summary>
+        public int? inbound_shipment_request_id { get; set; }
+        */
+        /// <summary>
+        ///  Forecast Ex Warehouse Date
+        /// </summary>
+        public DateOnly? forecast_ex_wh_date { get; set; }
+        /// <summary>
+        /// Estimated Putaway Date	forecast_ex_wh_date + 5 Days
+        /// </summary>
+        public DateOnly? estimated_putaway_date { get; set; }
+        /// <summary>
+        /// Date that the ASN's container is unloaded at Warehouse
+        /// </summary>
+        public DateOnly? received_date { get; set; }
+        /// <summary>
+        /// Internal Remarks
+        /// </summary>
+        [StringLength(1024)]
+        public string? internal_remarks { get; set; }
+        /// <summary>
+        /// Notes to Cargo Team
+        /// </summary>
+        [StringLength(255)]
+        public string? notes_to_cargo_team { get; set; }
+        /// <summary>
+        /// Attachment Flag	To indicate if ASN has attachment
+        /// </summary>
+        public bool attachment_flag { get; set; }
+
+        /// <summary>
+        /// Notes To Warehouse Flag	To indicate if any of the ASN Line has Notes to Warehouse
+        /// </summary>
+        public bool notes_to_warehouse_flag { get; set; }
+    }
+}

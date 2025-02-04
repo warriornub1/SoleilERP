@@ -1,0 +1,62 @@
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Debug"
+    }
+  },
+  "AllowedHosts": "*",
+  "ConnectionStrings": {
+    "sqlConnection": "Data Source=(localdb)\\Local;Initial Catalog=SERP;TrustServerCertificate=True;"
+  },
+  "DbContext": {
+    "ShowSql": true
+  },
+  "Serilog": {
+    "Using": [ "Serilog.Sinks.File" ],
+    "MinimumLevel": {
+      "Default": "Debug",
+      "Override": {
+        "Microsoft.EntityFrameworkCore.Database.Command": "Debug",
+        "Microsoft": "Information"
+      }
+    },
+    "Enrich": [
+      "FromLogContext",
+      "WithMachineName"
+    ],
+    "WriteTo": [
+      {
+        "Name": "File",
+        "Args": {
+          "path": "App_Data/Logs/SoleilERP-.log",
+          "formatter": "Serilog.Formatting.Compact.RenderedCompactJsonFormatter, Serilog.Formatting.Compact",
+          "retainedFileCountLimit": 20,
+          "rollingInterval": "Day",
+          "rollOnFileSizeLimit": true,
+          "outputTemplate": "[{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz}] [{Level:u3}] ({SourceContext}) {Message:lj}{NewLine}{Exception}",
+          "fileSizeLimitBytes": 10485760 // 10 MB in bytes (10000 * 1024)
+        }
+      },
+      {
+        "Name": "Console",
+        "Args": {
+          "outputTemplate": "[{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz}] [{Level:u3}] ({SourceContext}) {Message:lj}{NewLine}{Exception}"
+        }
+      }
+    ],
+    "Properties": {
+      "Application": "SoleilERP"
+    }
+  },
+  "Media": {
+    "RequestPath": "/Files",
+    "EnableDirectoryBrowsing": true
+  },
+  "BoldsReport": {
+    "Tokenurl": "/reporting/api/site/site1/token",
+    "BoldReportsUrl": "http://ddxapp.slsbearings.dom:53067",
+    "Username": "kahyong.chua@slsbearings.com.sg",
+    "SecretCode": "HZhP2chhD9tFgdmEM7Qj2XPd7bQgLza"
+  }
+}
