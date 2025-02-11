@@ -6,16 +6,6 @@ pipeline {
         DOTNET_SKIP_FIRST_TIME_EXPERIENCE = 'true'
         DEPLOY_PATH = "C:\\inetpub\\wwwroot\\restapi" // Windows path
     }
-
-    stages {
-        stage('Stop IIS') {
-            steps {
-                script {
-                    echo "Stopping IIS server..."
-                    bat 'iisreset /stop' // Stop IIS
-                }
-            }
-        }
         
         stage('Restore') {
             steps {
@@ -47,6 +37,15 @@ pipeline {
                 /p:PublishSingleFile=false \
                 /p:SelfContained=false
                 """
+            }
+        }
+        stages {
+        stage('Stop IIS') {
+            steps {
+                script {
+                    echo "Stopping IIS server..."
+                    bat 'iisreset /stop' // Stop IIS
+                }
             }
         }
         
