@@ -6,6 +6,16 @@ pipeline {
     }
     
     stages {
+        
+        stage('Build') {
+            steps {
+                script {
+                    echo "Building project in Release mode..."
+                }
+                bat 'dotnet build --configuration Release' // Build only
+            }
+        }
+        
         stage('Stop IIS') {
             steps {
                 script {
@@ -14,7 +24,7 @@ pipeline {
                 bat 'iisreset /stop' // Stop IIS
             }
         }
-
+        
         stage('Publish') {
             steps {
                 script {
