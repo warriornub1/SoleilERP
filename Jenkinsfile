@@ -4,26 +4,6 @@ pipeline {
     environment {
         DEPLOY_PATH = "C:\\inetpub\\wwwroot\\restapi" // Windows path
     }
-        
-        
-        stage('Build') {
-            steps {
-                script {
-                    echo "Building project in Release mode..."
-                }
-                bat 'dotnet build --configuration Release' // Build only
-            }
-        }
-        
-        stages {
-            stage('Stop IIS') {
-                steps {
-                    script {
-                        echo "Stopping IIS server..."
-                        bat 'iisreset /stop' // Stop IIS
-                    }
-                }
-        }
 
         stage('Publish') {
             steps {
@@ -57,16 +37,6 @@ pipeline {
                 }
             }
         }
-
-        stage('Print Publish Location') {
-            steps {
-                script {
-                    echo "Checking published files at ${DEPLOY_PATH}..."
-                }
-                bat "dir ${DEPLOY_PATH}" // Verify output
-            }
-        }
-    }
 
     post {
         always {
