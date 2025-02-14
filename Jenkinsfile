@@ -39,6 +39,15 @@ pipeline {
                 """
             }
         }
+        stages {
+        stage('Stop IIS') {
+            steps {
+                script {
+                    echo "Stopping IIS server..."
+                    bat 'iisreset /stop' // Stop IIS
+                }
+            }
+        }
         
         stage('Start IIS') {
             steps {
