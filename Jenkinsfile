@@ -5,27 +5,24 @@ pipeline {
         DEPLOY_PATH = "C:\\inetpub\\wwwroot\\restapi" // Windows path
     }
 
+    stages {
         stage('Publish') {
             steps {
                 script {
                     echo "Publishing project to ${DEPLOY_PATH}..."
                 }
                 bat """
-                dotnet publish --configuration Release \
-                --framework net8.0 \
-                --output "${DEPLOY_PATH}" \
-                /p:PublishSingleFile=false \
-                /p:SelfContained=false
+                dotnet publish --configuration Release --framework net8.0 --output "${DEPLOY_PATH}" /p:PublishSingleFile=false /p:SelfContained=false
                 """
             }
         }
-        stages {
+        
         stage('Stop IIS') {
             steps {
                 script {
                     echo "Stopping IIS server..."
-                    bat 'iisreset /stop' // Stop IIS
                 }
+                bat 'iisreset /stop' // Stop IIS
             }
         }
         
@@ -33,10 +30,11 @@ pipeline {
             steps {
                 script {
                     echo "Starting IIS server..."
-                    bat 'iisreset /start' // Start IIS
                 }
+                bat 'iisreset /start' // Start IIS
             }
         }
+    }
 
     post {
         always {
