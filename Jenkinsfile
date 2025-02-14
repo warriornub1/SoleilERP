@@ -7,7 +7,7 @@ pipeline {
     
     stages {
         
-        stage('Build') {
+        stage('Buildd') {
             steps {
                 script {
                     echo "Building project in Release mode..."
