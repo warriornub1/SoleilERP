@@ -5,23 +5,26 @@ pipeline {
         DEPLOY_PATH = "C:\\inetpub\\wwwroot\\restapi" // Windows path
     }
     
-    stage('Stop IIS') {
-        steps {
-            script {
-                echo "Stopping IIS server..."
-            }
-            bat 'iisreset /stop' // Stop IIS
-        }
-    }
     stages {
+        stage('Stop IIS') {
+            steps {
+                script {
+                    echo "Stopping IIS server..."
+                }
+                bat 'iisreset /stop' // Stop IIS
+            }
+        }
+
         stage('Publish') {
             steps {
                 script {
                     echo "Publishing project to ${DEPLOY_PATH}..."
                 }
-                bat """
-                dotnet publish --configuration Release --framework net8.0 --output "${DEPLOY_PATH}" /p:PublishSingleFile=false /p:SelfContained=false
-                """
+                bat '''
+                dotnet publish --configuration Release --framework net8.0 ^
+                --output "%DEPLOY_PATH%" ^
+                /p:PublishSingleFile=false /p:SelfContained=false
+                '''
             }
         }
         
