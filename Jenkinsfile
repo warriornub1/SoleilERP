@@ -2,29 +2,9 @@ pipeline {
     agent any
 
     environment {
-        DOTNET_CLI_HOME = '/tmp/.dotnet'
-        DOTNET_SKIP_FIRST_TIME_EXPERIENCE = 'true'
         DEPLOY_PATH = "C:\\inetpub\\wwwroot\\restapi" // Windows path
     }
-
-    stages {
-        stage('Stop IIS') {
-            steps {
-                script {
-                    echo "Stopping IIS server..."
-                    bat 'iisreset /stop' // Stop IIS
-                }
-            }
-        }
         
-        stage('Restore') {
-            steps {
-                script {
-                    echo "Restoring dependencies..."
-                }
-                bat 'dotnet restore' // Restore dependencies
-            }
-        }
         
         stage('Build') {
             steps {
@@ -35,6 +15,16 @@ pipeline {
             }
         }
         
+        stages {
+            stage('Stop IIS') {
+                steps {
+                    script {
+                        echo "Stopping IIS server..."
+                        bat 'iisreset /stop' // Stop IIS
+                    }
+                }
+        }
+
         stage('Publish') {
             steps {
                 script {
