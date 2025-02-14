@@ -47,13 +47,4 @@ pipeline {
             }
         }
     }
-
-    post {
-        always {
-            script {
-                echo "Cleaning up workspace..."
-            }
-            cleanWs() // Cleanup
-        }
-    }
 }
